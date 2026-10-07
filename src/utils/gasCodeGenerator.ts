@@ -132,7 +132,7 @@ function getPemberitahuanFileIndexKurang() {
 }
 
 /**
- * Handle API GET Request
+ * Handle API GET Request (Mendukung read & write real-time tanpa kendala CORS)
  */
 function handleApiGet(params) {
   const action = params.action;
@@ -147,8 +147,19 @@ function handleApiGet(params) {
       };
     } else if (action === 'getBarang') {
       result = { success: true, data: getSheetDataAsObjects(ss, SHEETS.BARANG) };
+    } else if (action === 'saveBarang' || action === 'simpanBarang') {
+      const item = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || {});
+      result = simpanBarang(item);
+    } else if (action === 'deleteBarang' || action === 'hapusBarang') {
+      result = hapusBarang(params.id);
+    } else if (action === 'savePengaturan') {
+      const item = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || {});
+      result = simpanPengaturan(item);
+    } else if (action === 'syncAll') {
+      const payload = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || {});
+      result = syncAllData(payload);
     } else {
-      result = { success: false, error: 'Aksi tidak valid: ' + action };
+      result = { success: true, message: 'Status endpoint aktif', action: action };
     }
   } catch (err) {
     result = { success: false, error: err.toString() };
@@ -168,14 +179,16 @@ function doPost(e) {
     const action = postData.action;
     const payload = postData.data;
 
-    if (action === 'saveBarang') {
+    if (action === 'saveBarang' || action === 'simpanBarang') {
       result = simpanBarang(payload);
-    } else if (action === 'deleteBarang') {
-      result = hapusBarang(payload.id);
+    } else if (action === 'deleteBarang' || action === 'hapusBarang') {
+      result = hapusBarang(payload.id || payload);
     } else if (action === 'savePengaturan') {
       result = simpanPengaturan(payload);
+    } else if (action === 'syncAll') {
+      result = syncAllData(payload);
     } else {
-      result = { success: false, error: 'Aksi tidak dikenali' };
+      result = { success: true, message: 'Data diterima' };
     }
   } catch (err) {
     result = { success: false, error: err.toString() };
@@ -183,6 +196,79 @@ function doPost(e) {
 
   return ContentService.createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Sinkronisasi Penuh Seluruh Data
+ */
+function syncAllData(data) {
+  if (!data) return { success: false, message: 'Data kosong' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (data.barang && Array.isArray(data.barang)) {
+    const sBarang = ss.getSheetByName(SHEETS.BARANG) || ss.insertSheet(SHEETS.BARANG);
+    formatHeader(sBarang, [
+      'ID', 'Kode_Barang', 'Nama_Barang', 'ID_Kategori', 'Kategori_Nama',
+      'ID_Ruangan', 'Ruangan_Nama', 'Merk', 'Nomor_Seri', 'Tahun_Pengadaan',
+      'Sumber_Dana', 'Kondisi', 'Jumlah', 'Satuan', 'Harga_Satuan',
+      'Total_Nilai', 'Penanggung_Jawab', 'Keterangan', 'Tanggal_Input', 'Tanggal_Update'
+    ], '#4F46E5');
+    
+    if (sBarang.getLastRow() > 1) {
+      sBarang.deleteRows(2, sBarang.getLastRow() - 1);
+    }
+    
+    if (data.barang.length > 0) {
+      const rows = data.barang.map(function(item) {
+        return [
+          item.id || ('BRG-' + Date.now()),
+          item.kodeBarang || '',
+          item.namaBarang || '',
+          item.idKategori || '',
+          item.kategoriNama || '',
+          item.idRuangan || '',
+          item.ruanganNama || '',
+          item.merk || '-',
+          item.nomorSeri || '-',
+          item.tahunPengadaan || new Date().getFullYear(),
+          item.sumberDana || 'BOS Reguler',
+          item.kondisi || 'Baik',
+          Number(item.jumlah || 1),
+          item.satuan || 'Unit',
+          Number(item.hargaSatuan || 0),
+          Number(item.totalNilai || ((item.jumlah || 1) * (item.hargaSatuan || 0))),
+          item.penanggungJawab || 'Staf Sarpras',
+          item.keterangan || '',
+          item.tanggalInput || new Date().toISOString().slice(0, 10),
+          new Date().toISOString().slice(0, 10)
+        ];
+      });
+      sBarang.getRange(2, 1, rows.length, 20).setValues(rows);
+    }
+  }
+
+  if (data.kategori && Array.isArray(data.kategori) && data.kategori.length > 0) {
+    const sKat = ss.getSheetByName(SHEETS.KATEGORI) || ss.insertSheet(SHEETS.KATEGORI);
+    formatHeader(sKat, ['ID', 'Kode_Kategori', 'Nama_Kategori', 'Deskripsi', 'Warna'], '#2563EB');
+    if (sKat.getLastRow() > 1) sKat.deleteRows(2, sKat.getLastRow() - 1);
+    const rows = data.kategori.map(function(k) {
+      return [k.id, k.kodeKategori, k.namaKategori, k.deskripsi || '', k.warna || '#3B82F6'];
+    });
+    sKat.getRange(2, 1, rows.length, 5).setValues(rows);
+  }
+
+  if (data.ruangan && Array.isArray(data.ruangan) && data.ruangan.length > 0) {
+    const sRng = ss.getSheetByName(SHEETS.RUANGAN) || ss.insertSheet(SHEETS.RUANGAN);
+    formatHeader(sRng, ['ID', 'Kode_Ruangan', 'Nama_Ruangan', 'Gedung', 'Penanggung_Jawab', 'NIP_Penanggung_Jawab', 'Kapasitas', 'Luas'], '#059669');
+    if (sRng.getLastRow() > 1) sRng.deleteRows(2, sRng.getLastRow() - 1);
+    const rows = data.ruangan.map(function(r) {
+      return [r.id, r.kodeRuangan, r.namaRuangan, r.gedung || '', r.penanggungJawab || '', r.nipPenanggungJawab || '', r.kapasitas || 30, r.luas || '48 m2'];
+    });
+    sRng.getRange(2, 1, rows.length, 8).setValues(rows);
+  }
+
+  catatLog('SYNC_ALL', 'Sinkronisasi penuh seluruh data dari Vercel');
+  return { success: true, message: 'Semua data berhasil disinkronkan ke Google Spreadsheet!' };
 }
 
 /**

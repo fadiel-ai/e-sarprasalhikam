@@ -128,7 +128,7 @@ export default function App() {
         try {
           const res = await pullDataFromGoogleSheet(pengaturan.gasWebAppUrl);
           if (res.success && res.data) {
-            handleDataPulled(res.data);
+            handleDataPulled(res.data, true);
           }
         } catch (err) {
           console.warn('Initial sync warning:', err);
@@ -136,6 +136,35 @@ export default function App() {
       });
     }
   }, []);
+
+  // SINKRONISASI REAL-TIME LATAR BELAKANG (POLLING SETIAP 10 DETIK & SAAT TAB AKTIF)
+  useEffect(() => {
+    if (!pengaturan.gasWebAppUrl || !pengaturan.gasWebAppUrl.startsWith('http')) return;
+
+    const syncLive = () => {
+      import('./services/storageService').then(async ({ pullDataFromGoogleSheet }) => {
+        try {
+          const res = await pullDataFromGoogleSheet(pengaturan.gasWebAppUrl);
+          if (res.success && res.data) {
+            handleDataPulled(res.data, true);
+          }
+        } catch (e) {
+          // silent in background
+        }
+      });
+    };
+
+    const intervalId = setInterval(syncLive, 10000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') syncLive();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [pengaturan.gasWebAppUrl]);
 
   // Sync handlers
   const handleQuickSync = async () => {
@@ -329,7 +358,7 @@ export default function App() {
   };
 
   // Pull data from GAS
-  const handleDataPulled = (data: any) => {
+  const handleDataPulled = (data: any, isSilent: boolean = false) => {
     if (data.pengaturan && Object.keys(data.pengaturan).length > 0) {
       setPengaturan((prev) => {
         const merged: PengaturanSekolah = {
@@ -361,7 +390,9 @@ export default function App() {
       setUsers(data.pengguna);
       saveStoredUsers(data.pengguna);
     }
-    showToast('Data berhasil diperbarui dari Google Spreadsheet!', 'success');
+    if (!isSilent) {
+      showToast('Data berhasil diperbarui dari Google Spreadsheet!', 'success');
+    }
   };
 
   // Reset to default

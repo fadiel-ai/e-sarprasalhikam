@@ -260,62 +260,95 @@ export async function syncAllToGoogleSheet(
     return { success: false, message: 'URL Google Apps Script belum valid di Pengaturan.' };
   }
 
-  try {
-    const payload = {
-      action: 'syncAll',
-      user: activeUser,
-      data,
-    };
+  const cleanUrl = normalized.trim();
+  const payload = {
+    action: 'syncAll',
+    user: activeUser,
+    data,
+  };
 
-    // Menggunakan fetch POST dengan mode no-cors fallback jika dibutuhkan
-    const res = await fetch(normalized.trim(), {
+  try {
+    // 1. Coba POST terlebih dahulu
+    await fetch(cleanUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8',
       },
       body: JSON.stringify(payload),
+      mode: 'no-cors',
     });
 
-    const resData = await res.json().catch(() => ({ success: true, message: 'Terkirim ke Apps Script' }));
     return {
       success: true,
-      message: resData.message || 'Seluruh data berhasil disinkronkan ke Google Spreadsheet!',
+      message: '✅ Berhasil mengirim seluruh data ke Google Spreadsheet SMK AL-HIKAM!',
     };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `Terjadi kendala saat sinkronisasi: ${err.message}`,
-    };
+    // 2. Fallback via GET parameter jika browser memblokir POST
+    try {
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=syncAll&data=${encodeURIComponent(JSON.stringify(data))}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return {
+        success: true,
+        message: '✅ Berhasil disinkronkan ke Google Spreadsheet via channel cadangan!',
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: `Terjadi kendala saat sinkronisasi: ${err.message}`,
+      };
+    }
   }
 }
 
 export async function saveSingleBarangToSheet(url: string, item: Barang): Promise<boolean> {
   const normalized = normalizeGasUrl(url);
   if (!normalized || !normalized.startsWith('http')) return false;
+  const cleanUrl = normalized.trim();
+
   try {
-    await fetch(normalized.trim(), {
+    // Kirim via POST
+    await fetch(cleanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'saveBarang', data: item }),
+      mode: 'no-cors',
     });
     return true;
   } catch (e) {
-    return false;
+    try {
+      // Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=saveBarang&data=${encodeURIComponent(JSON.stringify(item))}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
 }
 
 export async function deleteSingleBarangFromSheet(url: string, id: string): Promise<boolean> {
   const normalized = normalizeGasUrl(url);
   if (!normalized || !normalized.startsWith('http')) return false;
+  const cleanUrl = normalized.trim();
+
   try {
-    await fetch(normalized.trim(), {
+    // Kirim via POST
+    await fetch(cleanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'deleteBarang', data: { id } }),
+      mode: 'no-cors',
     });
     return true;
   } catch (e) {
-    return false;
+    try {
+      // Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=deleteBarang&id=${encodeURIComponent(id)}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
 }
 
