@@ -376,6 +376,32 @@ export async function deleteSingleBarangFromSheet(url: string, id: string): Prom
   }
 }
 
+export async function savePengaturanToSheet(url: string, pengaturan: PengaturanSekolah): Promise<boolean> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) return false;
+  const cleanUrl = normalized.trim();
+
+  try {
+    // Kirim via POST
+    await fetch(cleanUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'savePengaturan', data: pengaturan }),
+      mode: 'no-cors',
+    });
+    return true;
+  } catch (e) {
+    try {
+      // Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=savePengaturan&data=${encodeURIComponent(JSON.stringify(pengaturan))}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+}
+
 export async function pullDataFromGoogleSheet(url: string): Promise<{
   success: boolean;
   message: string;

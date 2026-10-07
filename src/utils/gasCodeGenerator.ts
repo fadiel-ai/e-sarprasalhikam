@@ -431,16 +431,30 @@ function hapusRuangan(id) {
 }
 
 /**
- * Simpan Profil Pengaturan Sekolah
+ * Simpan Profil Pengaturan Sekolah Real-Time
  */
 function simpanPengaturan(item) {
+  if (!item) return { success: false, message: 'Item pengaturan kosong' };
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEETS.PENGATURAN);
-  if (!sheet) return { success: false };
+  let sheet = ss.getSheetByName(SHEETS.PENGATURAN);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.PENGATURAN);
+    formatHeader(sheet, ['Kunci_Pengaturan', 'Nilai_Pengaturan', 'Keterangan'], '#1E293B');
+  }
 
-  const entries = Object.keys(item).map(key => [key, String(item[key]), '']);
-  sheet.getRange(2, 1, entries.length, 3).setValues(entries);
-  return { success: true, message: 'Pengaturan sekolah diperbarui' };
+  if (sheet.getLastRow() > 1) {
+    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  }
+
+  const entries = Object.keys(item).map(function(key) {
+    return [key, String(item[key] || ''), ''];
+  });
+
+  if (entries.length > 0) {
+    sheet.getRange(2, 1, entries.length, 3).setValues(entries);
+  }
+  catatLog('UPDATE_PENGATURAN', 'Memperbarui identitas sekolah & pengaturan real-time');
+  return { success: true, message: 'Pengaturan sekolah berhasil diperbarui di Google Spreadsheet' };
 }
 
 /**

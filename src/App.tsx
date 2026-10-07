@@ -357,12 +357,21 @@ export default function App() {
     showToast('Pengguna berhasil dihapus.');
   };
 
-  // Save Pengaturan
+  // Save Pengaturan Real-Time ke Google Spreadsheet
   const handleSavePengaturan = (newPengaturan: PengaturanSekolah) => {
     setPengaturan(newPengaturan);
     saveStoredPengaturan(newPengaturan);
-    addStoredLog(activeUser.namaLengkap, 'EDIT', 'SISTEM', 'Memperbarui pengaturan identitas sekolah & koneksi');
-    showToast('Pengaturan sekolah & koneksi berhasil disimpan.');
+    if (newPengaturan.gasWebAppUrl && newPengaturan.gasWebAppUrl.startsWith('http')) {
+      import('./services/storageService').then(({ savePengaturanToSheet }) => {
+        savePengaturanToSheet(newPengaturan.gasWebAppUrl, newPengaturan).then((ok) => {
+          if (ok) {
+            showToast('✅ Pengaturan berhasil disinkronkan langsung ke Google Spreadsheet!', 'success');
+          }
+        });
+      });
+    }
+    addStoredLog(activeUser.namaLengkap, 'EDIT', 'SISTEM', 'Memperbarui pengaturan identitas sekolah & sinkronisasi Google Spreadsheet');
+    showToast('Pengaturan profil sekolah berhasil disimpan!', 'success');
   };
 
   // Pull data from GAS

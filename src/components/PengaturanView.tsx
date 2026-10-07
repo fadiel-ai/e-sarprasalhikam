@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Building,
@@ -50,6 +50,11 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 }) => {
   const [form, setForm] = useState<PengaturanSekolah>({ ...pengaturan });
   const [isSaved, setIsSaved] = useState(false);
+
+  // Sinkronkan form saat data pengaturan ditarik real-time dari Google Spreadsheet
+  useEffect(() => {
+    setForm({ ...pengaturan });
+  }, [pengaturan]);
 
   // GAS actions state
   const [testingStatus, setTestingStatus] = useState<{
