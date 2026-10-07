@@ -15,6 +15,7 @@ import { BarangView } from './components/BarangView';
 import { CodeGsView } from './components/CodeGsView';
 import { DashboardView } from './components/DashboardView';
 import { KategoriRuanganView } from './components/KategoriRuanganView';
+import { LaporanView } from './components/LaporanView';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
 import { PengaturanView } from './components/PengaturanView';
@@ -546,6 +547,15 @@ export default function App() {
               ruanganList={ruanganList}
               pengaturan={pengaturan}
               preselectedIds={barcodePreselectedIds}
+            />
+          )}
+
+          {activeTab === 'laporan' && (
+            <LaporanView
+              barangList={barangList}
+              kategoriList={kategoriList}
+              ruanganList={ruanganList}
+              pengaturan={pengaturan}
             />
           )}
 

@@ -9,31 +9,99 @@
   }
 }
 
-/* Print styling for Barcode & Kartu Inventaris Ruangan (KIR) */
+/* Print styling for Barcode, KIR, & Dokumen Laporan Resmi */
 @media print {
-  body {
+  html, body {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
     background-color: #ffffff !important;
     color: #000000 !important;
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
+    margin: 0 !important;
+    padding: 0 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
   }
-  .no-print {
+
+  /* Sembunyikan semua elemen kecuali yang di dalam area cetak */
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-area,
+  #printable-area * {
+    visibility: visible !important;
+  }
+
+  #printable-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 10mm 8mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  /* Hilangkan overflow: hidden dan auto dari parent containers */
+  #root, div, main, section {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .no-print,
+  aside,
+  header,
+  nav,
+  button,
+  .fixed,
+  .sticky {
     display: none !important;
   }
+
   .print-only {
     display: block !important;
   }
+
   .print-break-inside-avoid {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
   .print-page-break-after {
     page-break-after: always;
     break-after: page;
   }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   @page {
-    margin: 10mm;
-    size: auto;
+    margin: 10mm 8mm;
+    size: A4 portrait;
   }
 }
 

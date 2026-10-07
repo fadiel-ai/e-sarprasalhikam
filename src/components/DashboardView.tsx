@@ -80,14 +80,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={onOpenAddBarang}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Barang</span>
             </button>
             <button
+              onClick={() => onNavigate('laporan')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500/50 hover:bg-indigo-500/70 active:scale-95 text-white text-sm font-semibold rounded-xl backdrop-blur-xs transition-all border border-indigo-400/40 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-sky-200" />
+              <span>Cetak Laporan</span>
+            </button>
+            <button
               onClick={() => onNavigate('barcode')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white text-sm font-semibold rounded-xl backdrop-blur-xs transition-all border border-white/15"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white text-sm font-semibold rounded-xl backdrop-blur-xs transition-all border border-white/15 cursor-pointer"
             >
               <Barcode className="w-4 h-4 text-amber-300" />
               <span>Cetak Barcode</span>

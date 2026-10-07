@@ -3,6 +3,7 @@ import {
   Barcode,
   BookOpenCheck,
   FileCode2,
+  FileSpreadsheet,
   FolderTree,
   LayoutDashboard,
   Package,
@@ -15,8 +16,9 @@ export type NavTab =
   | 'dashboard'
   | 'barang'
   | 'kategori_ruangan'
-  | 'admin'
   | 'barcode'
+  | 'laporan'
+  | 'admin'
   | 'pengaturan'
   | 'codegs'
   | 'petunjuk';
@@ -60,6 +62,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Barcode,
       badge: 'Cetak',
       badgeColor: 'bg-emerald-100 text-emerald-700',
+    },
+    {
+      id: 'laporan' as NavTab,
+      label: 'Laporan Sarpras',
+      icon: FileSpreadsheet,
+      badge: 'A4',
+      badgeColor: 'bg-blue-100 text-blue-700',
     },
     {
       id: 'admin' as NavTab,
