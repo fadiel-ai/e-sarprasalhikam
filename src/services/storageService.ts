@@ -207,7 +207,7 @@ export async function testGasConnection(url: string): Promise<{ success: boolean
   }
 
   const cleanUrl = normalized.trim();
-  const testUrl = cleanUrl.includes('?') ? `${cleanUrl}&action=ping` : `${cleanUrl}?action=ping`;
+  const testUrl = cleanUrl.includes('?') ? `${cleanUrl}&action=getAll` : `${cleanUrl}?action=getAll`;
 
   try {
     const controller = new AbortController();
@@ -286,6 +286,36 @@ export async function syncAllToGoogleSheet(
       success: false,
       message: `Terjadi kendala saat sinkronisasi: ${err.message}`,
     };
+  }
+}
+
+export async function saveSingleBarangToSheet(url: string, item: Barang): Promise<boolean> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) return false;
+  try {
+    await fetch(normalized.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveBarang', data: item }),
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function deleteSingleBarangFromSheet(url: string, id: string): Promise<boolean> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) return false;
+  try {
+    await fetch(normalized.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteBarang', data: { id } }),
+    });
+    return true;
+  } catch (e) {
+    return false;
   }
 }
 

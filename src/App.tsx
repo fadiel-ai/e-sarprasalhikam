@@ -121,6 +121,22 @@ export default function App() {
     }
   }, []);
 
+  // SINKRONISASI DATA TERBARU OTOMATIS DARI GOOGLE SPREADSHEET SAAT APLIKASI DIBUKA
+  useEffect(() => {
+    if (pengaturan.gasWebAppUrl && pengaturan.gasWebAppUrl.startsWith('http')) {
+      import('./services/storageService').then(async ({ pullDataFromGoogleSheet }) => {
+        try {
+          const res = await pullDataFromGoogleSheet(pengaturan.gasWebAppUrl);
+          if (res.success && res.data) {
+            handleDataPulled(res.data);
+          }
+        } catch (err) {
+          console.warn('Initial sync warning:', err);
+        }
+      });
+    }
+  }, []);
+
   // Sync handlers
   const handleQuickSync = async () => {
     if (!pengaturan.gasWebAppUrl) {
@@ -185,6 +201,11 @@ export default function App() {
     }
     setBarangList(updated);
     saveStoredBarang(updated);
+    if (pengaturan.gasWebAppUrl) {
+      import('./services/storageService').then(({ saveSingleBarangToSheet }) => {
+        saveSingleBarangToSheet(pengaturan.gasWebAppUrl, item);
+      });
+    }
     triggerAutoSync(updated, undefined, undefined);
 
     const logAction = isEdit ? 'EDIT' : 'TAMBAH';
@@ -203,6 +224,11 @@ export default function App() {
     const updated = barangList.filter((b) => b.id !== id);
     setBarangList(updated);
     saveStoredBarang(updated);
+    if (pengaturan.gasWebAppUrl) {
+      import('./services/storageService').then(({ deleteSingleBarangFromSheet }) => {
+        deleteSingleBarangFromSheet(pengaturan.gasWebAppUrl, id);
+      });
+    }
     triggerAutoSync(updated, undefined, undefined);
 
     const updatedLogs = addStoredLog(
@@ -304,19 +330,34 @@ export default function App() {
 
   // Pull data from GAS
   const handleDataPulled = (data: any) => {
-    if (data.barang) {
+    if (data.pengaturan && Object.keys(data.pengaturan).length > 0) {
+      setPengaturan((prev) => {
+        const merged: PengaturanSekolah = {
+          ...prev,
+          ...data.pengaturan,
+          namaSekolah: data.pengaturan.namaSekolah || prev.namaSekolah,
+          npsn: String(data.pengaturan.npsn || prev.npsn),
+          alamat: data.pengaturan.alamat || prev.alamat,
+          wakaSarpras: data.pengaturan.wakaSarpras || prev.wakaSarpras,
+          kepalaSekolah: data.pengaturan.kepalaSekolah || prev.kepalaSekolah,
+        };
+        saveStoredPengaturan(merged);
+        return merged;
+      });
+    }
+    if (data.barang && Array.isArray(data.barang) && data.barang.length > 0) {
       setBarangList(data.barang);
       saveStoredBarang(data.barang);
     }
-    if (data.kategori) {
+    if (data.kategori && Array.isArray(data.kategori) && data.kategori.length > 0) {
       setKategoriList(data.kategori);
       saveStoredKategori(data.kategori);
     }
-    if (data.ruangan) {
+    if (data.ruangan && Array.isArray(data.ruangan) && data.ruangan.length > 0) {
       setRuanganList(data.ruangan);
       saveStoredRuangan(data.ruangan);
     }
-    if (data.pengguna) {
+    if (data.pengguna && Array.isArray(data.pengguna) && data.pengguna.length > 0) {
       setUsers(data.pengguna);
       saveStoredUsers(data.pengguna);
     }
