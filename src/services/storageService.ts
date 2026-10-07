@@ -33,6 +33,16 @@ export const getStoredPengaturan = (): PengaturanSekolah => {
       return DEFAULT_PENGATURAN;
     }
     const parsed = JSON.parse(raw);
+    if (!parsed.namaSekolah || parsed.namaSekolah.includes('Cendekia') || parsed.namaSekolah === 'SMP Negeri 1 Cendekia Mandiri') {
+      parsed.namaSekolah = DEFAULT_PENGATURAN.namaSekolah;
+      parsed.alamat = DEFAULT_PENGATURAN.alamat;
+      parsed.kelurahan = DEFAULT_PENGATURAN.kelurahan;
+      parsed.kecamatan = DEFAULT_PENGATURAN.kecamatan;
+      parsed.kabupatenKota = DEFAULT_PENGATURAN.kabupatenKota;
+      parsed.provinsi = DEFAULT_PENGATURAN.provinsi;
+      parsed.npsn = DEFAULT_PENGATURAN.npsn;
+      localStorage.setItem(STORAGE_KEYS.PENGATURAN, JSON.stringify(parsed));
+    }
     if (!parsed.gasWebAppUrl || parsed.gasWebAppUrl.trim() === '') {
       parsed.gasWebAppUrl = DEFAULT_PENGATURAN.gasWebAppUrl;
       parsed.autoSync = true;

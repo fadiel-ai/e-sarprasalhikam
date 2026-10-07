@@ -368,15 +368,15 @@ function setupDatabase() {
   formatHeader(sPengaturan, ['Kunci_Pengaturan', 'Nilai_Pengaturan', 'Keterangan'], '#1E293B');
   if (sPengaturan.getLastRow() <= 1) {
     sPengaturan.getRange(2, 1, 9, 3).setValues([
-      ['namaSekolah', 'SMP Negeri 1 Cendekia Mandiri', 'Nama Resmi Sekolah'],
-      ['npsn', '20234567', 'Nomor Pokok Sekolah Nasional'],
-      ['alamat', 'Jl. Pendidikan No. 45, Kompleks Terpadu', 'Alamat Lengkap'],
-      ['kepalaSekolah', 'Dr. H. Ahmad Fauzi, M.Pd.', 'Nama Kepala Sekolah'],
-      ['nipKepalaSekolah', '19750815 199903 1 002', 'NIP Kepala Sekolah'],
-      ['wakaSarpras', 'Bambang Supriyadi, S.Pd.', 'Wakil Kepala Urusan Sarpras'],
-      ['nipWakaSarpras', '19820412 200604 1 015', 'NIP Waka Sarpras'],
-      ['kontakSekolah', '(022) 7564321', 'Telepon / Kontak'],
-      ['emailSekolah', 'sarpras@smpn1cendekia.sch.id', 'Email Resmi']
+      ['namaSekolah', 'SMK AL-HIKAM SENDANG AGUNG', 'Nama Resmi Sekolah'],
+      ['npsn', '69900123', 'Nomor Pokok Sekolah Nasional'],
+      ['alamat', 'Jl. Ponpes Al-Hikam, Sendang Agung', 'Alamat Lengkap'],
+      ['kepalaSekolah', 'Kepala Sekolah SMK Al-Hikam', 'Nama Kepala Sekolah'],
+      ['nipKepalaSekolah', '-', 'NIP Kepala Sekolah'],
+      ['wakaSarpras', 'Waka Sarpras SMK Al-Hikam', 'Wakil Kepala Urusan Sarpras'],
+      ['nipWakaSarpras', '-', 'NIP Waka Sarpras'],
+      ['kontakSekolah', '0812-7890-1234', 'Telepon / Kontak'],
+      ['emailSekolah', 'smkalhikam.sendangagung@gmail.com', 'Email Resmi']
     ]);
   }
 
@@ -590,8 +590,8 @@ export const INDEX_HTML_SCRIPT = `<!DOCTYPE html>
             🏫
           </div>
           <div>
-            <h1 class="text-sm font-bold text-white leading-tight" id="sidebarSchoolName">SMP Negeri 1 Cendekia</h1>
-            <span class="text-[10px] text-indigo-400 font-semibold" id="sidebarNpsn">NPSN 20234567</span>
+            <h1 class="text-sm font-bold text-white leading-tight" id="sidebarSchoolName">SMK AL-HIKAM SENDANG AGUNG</h1>
+            <span class="text-[10px] text-indigo-400 font-semibold" id="sidebarNpsn">NPSN 69900123</span>
           </div>
         </div>
       </div>
@@ -803,9 +803,9 @@ export const INDEX_HTML_SCRIPT = `<!DOCTYPE html>
           <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xs text-slate-900 kir-document space-y-6">
             <!-- Kop Dokumen -->
             <div class="text-center border-b-2 border-slate-900 pb-3">
-              <h2 class="text-lg font-extrabold uppercase tracking-wide" id="kirNamaSekolah">SMP NEGERI 1 CENDEKIA MANDIRI</h2>
+              <h2 class="text-lg font-extrabold uppercase tracking-wide" id="kirNamaSekolah">SMK AL-HIKAM SENDANG AGUNG</h2>
               <h3 class="text-sm font-bold uppercase tracking-wider text-slate-700">KARTU INVENTARIS RUANGAN (KIR)</h3>
-              <p class="text-xs text-slate-600 mt-1" id="kirAlamatSekolah">Jl. Pendidikan No. 45 - NPSN: 20234567</p>
+              <p class="text-xs text-slate-600 mt-1" id="kirAlamatSekolah">Jl. Ponpes Al-Hikam, Sendang Agung - NPSN: 69900123</p>
             </div>
 
             <!-- Identitas Ruangan -->
@@ -1168,11 +1168,11 @@ export const JAVASCRIPT_HTML_SCRIPT = `<script src="https://cdn.jsdelivr.net/npm
             { id: 'RNG-01', kodeRuangan: 'LAB-KOMP', namaRuangan: 'Lab Komputer 1', gedung: 'Gedung B', penanggungJawab: 'Budi Santoso, S.Kom.', nipPenanggungJawab: '19870514 201101 1 004' }
           ],
           pengaturan: {
-            namaSekolah: 'SMP Negeri 1 Cendekia Mandiri',
-            npsn: '20234567',
-            alamat: 'Jl. Pendidikan No. 45',
-            kepalaSekolah: 'Dr. H. Ahmad Fauzi, M.Pd.',
-            nipKepalaSekolah: '19750815 199903 1 002'
+            namaSekolah: 'SMK AL-HIKAM SENDANG AGUNG',
+            npsn: '69900123',
+            alamat: 'Jl. Ponpes Al-Hikam, Sendang Agung',
+            kepalaSekolah: 'Kepala Sekolah SMK Al-Hikam',
+            nipKepalaSekolah: '-'
           }
         });
       }, 500);
