@@ -23,6 +23,25 @@ const STORAGE_KEYS = {
   PENGATURAN: 'sis_inventaris_pengaturan',
   LOGS: 'sis_inventaris_logs',
   ACTIVE_USER: 'sis_inventaris_active_user',
+  AUTH_USER: 'sis_inventaris_auth_session',
+};
+
+export const getAuthSession = (): AdminUser | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+};
+
+export const setAuthSession = (user: AdminUser | null) => {
+  if (!user) {
+    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+  } else {
+    localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
+  }
 };
 
 export const getStoredPengaturan = (): PengaturanSekolah => {
@@ -116,7 +135,12 @@ export const getStoredUsers = (): AdminUser[] => {
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
       return DEFAULT_USERS;
     }
-    return JSON.parse(raw);
+    const parsed: AdminUser[] = JSON.parse(raw);
+    if (!parsed || !parsed.length || !parsed[0].password) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS;
+    }
+    return parsed;
   } catch (e) {
     return DEFAULT_USERS;
   }

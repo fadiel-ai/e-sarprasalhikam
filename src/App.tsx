@@ -15,12 +15,14 @@ import { BarangView } from './components/BarangView';
 import { CodeGsView } from './components/CodeGsView';
 import { DashboardView } from './components/DashboardView';
 import { KategoriRuanganView } from './components/KategoriRuanganView';
+import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
 import { PengaturanView } from './components/PengaturanView';
 import { PetunjukPenggunaanView } from './components/PetunjukPenggunaanView';
 import { NavTab, Sidebar } from './components/Sidebar';
 import {
   addStoredLog,
+  getAuthSession,
   getStoredBarang,
   getStoredKategori,
   getStoredLogs,
@@ -33,11 +35,15 @@ import {
   saveStoredPengaturan,
   saveStoredRuangan,
   saveStoredUsers,
+  setAuthSession,
   syncAllToGoogleSheet,
 } from './services/storageService';
 import { AdminUser, Barang, Kategori, LogAktivitas, PengaturanSekolah, Ruangan } from './types/inventory';
 
 export default function App() {
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(() => getAuthSession());
+
   // State Collections
   const [pengaturan, setPengaturan] = useState<PengaturanSekolah>(getStoredPengaturan);
   const [barangList, setBarangList] = useState<Barang[]>(getStoredBarang);
@@ -48,12 +54,14 @@ export default function App() {
 
   // Active User
   const [activeUser, setActiveUser] = useState<AdminUser>(() => {
+    const session = getAuthSession();
+    if (session) return session;
     const list = getStoredUsers();
     return list[0] || {
       id: 'USR-01',
       username: 'admin',
       namaLengkap: 'Bambang Supriyadi, S.Pd.',
-      email: 'sarpras@sekolah.sch.id',
+      email: 'sarpras@smkalhikam.sch.id',
       role: 'Super Admin',
       status: 'Aktif',
       nomorTelepon: '0812-3456-7890',
@@ -415,6 +423,31 @@ export default function App() {
 
   const totalRusak = barangList.filter((b) => b.kondisi !== 'Baik').length;
 
+  // Authentication Handlers
+  const handleLoginSuccess = (user: AdminUser) => {
+    setCurrentUser(user);
+    setActiveUser(user);
+    setAuthSession(user);
+    showToast(`Selamat datang kembali, ${user.namaLengkap}!`, 'success');
+  };
+
+  const handleLogout = () => {
+    setAuthSession(null);
+    setCurrentUser(null);
+    showToast('Anda telah keluar dari sistem inventaris.', 'info');
+  };
+
+  // Render Login View if not authenticated
+  if (!currentUser) {
+    return (
+      <LoginView
+        pengaturan={pengaturan}
+        users={users}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* Toast Notification */}
@@ -441,6 +474,7 @@ export default function App() {
         isSyncing={isSyncing}
         onQuickSync={handleQuickSync}
         onOpenSettings={() => setActiveTab('pengaturan')}
+        onLogout={handleLogout}
       />
 
       <div className="flex-1 flex overflow-hidden">

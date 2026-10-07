@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Globe,
   HardDrive,
+  LogOut,
   QrCode,
   RefreshCw,
   School,
@@ -25,6 +26,7 @@ interface NavbarProps {
   isSyncing: boolean;
   onQuickSync: () => void;
   onOpenSettings: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSyncing,
   onQuickSync,
   onOpenSettings,
+  onLogout,
 }) => {
   const isGasConnected = Boolean(pengaturan.gasWebAppUrl && pengaturan.gasWebAppUrl.trim().startsWith('http'));
   const [showShareModal, setShowShareModal] = useState(false);
@@ -170,6 +173,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {activeUser.role}
               </p>
             </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Keluar dari Akun (Logout)"
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -54,6 +54,7 @@ export interface Ruangan {
 export interface AdminUser {
   id: string;
   username: string;
+  password?: string;
   namaLengkap: string;
   email: string;
   role: RoleUser;
