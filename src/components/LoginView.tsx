@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   AlertCircle,
-  CheckCircle2,
   Eye,
   EyeOff,
   KeyRound,
@@ -67,12 +66,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
       setIsLoading(false);
       onLoginSuccess(matchedUser);
     }, 350);
-  };
-
-  const handleQuickLogin = (user: AdminUser) => {
-    setUsernameInput(user.username);
-    setPasswordInput(user.password || 'admin123');
-    setErrorMessage(null);
   };
 
   return (
@@ -159,7 +152,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -180,35 +173,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <span>{isLoading ? 'Memverifikasi...' : 'Masuk Sekarang'}</span>
             </button>
           </form>
-
-          {/* Akses Demo / Akun Cepat */}
-          <div className="pt-2 border-t border-slate-100 space-y-2.5">
-            <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
-              <span>Pilihan Akun Cepat (Klik untuk Isi):</span>
-              <span className="text-indigo-600 font-bold">1-Klik</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {users.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleQuickLogin(u)}
-                  className="p-2.5 bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 rounded-xl text-left transition-all group cursor-pointer"
-                >
-                  <span className="font-bold text-slate-800 block truncate group-hover:text-indigo-700">
-                    {u.namaLengkap}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">
-                    Role: {u.role}
-                  </span>
-                  <span className="text-[10px] font-mono text-indigo-600 font-semibold">
-                    {u.username} / {u.password || 'admin123'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Footer Info */}

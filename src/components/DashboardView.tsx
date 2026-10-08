@@ -90,7 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500/50 hover:bg-indigo-500/70 active:scale-95 text-white text-sm font-semibold rounded-xl backdrop-blur-xs transition-all border border-indigo-400/40 cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-sky-200" />
-              <span>Cetak Laporan</span>
+              <span>Unduh Laporan</span>
             </button>
             <button
               onClick={() => onNavigate('barcode')}

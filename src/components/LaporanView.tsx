@@ -127,6 +127,81 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     return { totalUnit, totalNilai, baik, rusakRingan, rusakBerat };
   }, [filteredBarang]);
 
+  const handleDownloadDokumen = () => {
+    const printEl = document.getElementById('printable-area');
+    if (!printEl) {
+      alert('Dokumen belum siap untuk diunduh.');
+      return;
+    }
+
+    const titleMap: Record<JenisLaporan, string> = {
+      buku_induk: 'Buku_Induk_Inventaris',
+      per_ruangan: 'Laporan_KIR_Ruangan',
+      kondisi_aset: 'Laporan_Rekapitulasi_Kondisi',
+      sumber_dana: 'Laporan_Sumber_Dana',
+    };
+
+    const cleanSchool = (pengaturan.namaSekolah || 'SMK_AL_HIKAM').replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `Dokumen_${titleMap[jenisLaporan]}_${cleanSchool}_${dateStr}.html`;
+
+    const fullHtml = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${titleMap[jenisLaporan].replace(/_/g, ' ')} - ${pengaturan.namaSekolah}</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
+  <style>
+    * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 20px; background: #f8fafc; color: #000; }
+    .action-bar { position: sticky; top: 0; z-index: 100; background: #0f172a; color: white; padding: 12px 24px; border-radius: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+    .action-bar button { background: #4f46e5; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; }
+    .action-bar button:hover { background: #4338ca; }
+    .doc-sheet { max-width: 960px; margin: 0 auto; background: white; padding: 35px 45px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+    th, td { border: 1px solid #000; padding: 6px 8px; }
+    th { background-color: #f1f5f9; font-weight: 800; text-align: center; }
+    tr { page-break-inside: avoid; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: bold; }
+    .font-extrabold { font-weight: 800; }
+    .uppercase { text-transform: uppercase; }
+    .underline { text-decoration: underline; }
+    @media print {
+      .action-bar { display: none !important; }
+      body { padding: 0 !important; background: white !important; }
+      .doc-sheet { max-width: 100% !important; padding: 0 !important; border: none !important; box-shadow: none !important; border-radius: 0 !important; }
+      @page { size: A4 portrait; margin: 8mm 6mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="action-bar">
+    <span style="font-weight: 700; font-size: 14px;">📄 Dokumen Laporan Resmi: ${pengaturan.namaSekolah}</span>
+    <div>
+      <button onclick="window.print()">🖨️ Cetak / Simpan PDF Sekarang</button>
+    </div>
+  </div>
+  <div class="doc-sheet">
+    ${printEl.innerHTML}
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handlePrint = () => {
     const printEl = document.getElementById('printable-area');
     if (!printEl) {
@@ -308,22 +383,30 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer"
             title="Download Spreadsheet Excel / CSV"
           >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Unduh Excel (CSV)</span>
+          </button>
+          <button
+            onClick={handleDownloadDokumen}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+            title="Unduh file dokumen resmi A4 siap cetak & simpan PDF"
+          >
             <Download className="w-4 h-4" />
-            <span>Ekspor Excel/CSV</span>
+            <span>Unduh Dokumen</span>
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
-            title="Cetak format cetak A4 / PDF"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-xl text-xs font-semibold border border-slate-300 transition-all cursor-pointer"
+            title="Buka dialog cetak langsung printer"
           >
             <Printer className="w-4 h-4" />
-            <span>Cetak Dokumen (A4)</span>
+            <span>Cetak Langsung</span>
           </button>
         </div>
       </div>

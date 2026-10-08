@@ -3,6 +3,7 @@ import {
   Building2,
   CheckCircle2,
   DollarSign,
+  Download,
   Edit2,
   FileText,
   FolderPlus,
@@ -150,9 +151,49 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
     setIsRuangModalOpen(false);
   };
 
-  // Trigger Print for KIR
+  // Trigger Print & Download for KIR
   const handlePrintKIR = () => {
     window.print();
+  };
+
+  const handleDownloadKIR = () => {
+    const printEl = document.getElementById('printableKir');
+    if (!printEl || !kirRuangan) return;
+
+    const fileName = `Dokumen_KIR_${kirRuangan.namaRuangan.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.html`;
+    const fullHtml = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>KIR - ${kirRuangan.namaRuangan} - ${pengaturan.namaSekolah}</title>
+  <style>
+    body { font-family: sans-serif; padding: 25px; background: white; color: black; }
+    .bar { background: #0f172a; color: white; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .bar button { background: #4f46e5; color: white; border: none; padding: 6px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+    th, td { border: 1px solid black; padding: 6px; }
+    th { background: #f1f5f9; }
+    @media print { .bar { display: none; } body { padding: 0; } @page { size: A4; margin: 8mm; } }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <span>📄 Kartu Inventaris Ruangan: ${kirRuangan.namaRuangan}</span>
+    <button onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+  </div>
+  ${printEl.innerHTML}
+</body>
+</html>`;
+
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -410,15 +451,23 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleDownloadKIR}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                  title="Unduh file dokumen KIR siap cetak"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh Dokumen KIR</span>
+                </button>
+                <button
                   onClick={handlePrintKIR}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white rounded-xl text-xs font-semibold border border-slate-700 cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Cetak KIR (Print / PDF)</span>
+                  <span>Cetak Langsung</span>
                 </button>
                 <button
                   onClick={() => setKirRuangan(null)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10"
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
