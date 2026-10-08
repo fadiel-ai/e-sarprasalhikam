@@ -79,6 +79,9 @@ export interface PengaturanSekolah {
   kontakSekolah: string;
   emailSekolah: string;
   logoUrl?: string;
+  kopSuratUrl?: string;
+  tipeKopSurat?: 'gambar' | 'teks_otomatis';
+  subKopText?: string;
   gasWebAppUrl: string;
   autoSync?: boolean;
   scriptDeploymentId?: string;

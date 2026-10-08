@@ -80,6 +80,7 @@ export default function App() {
 
   // Syncing state
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingUsers, setIsSyncingUsers] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -344,18 +345,119 @@ export default function App() {
     if (isEdit) {
       updated = users.map((u) => (u.id === user.id ? user : u));
     } else {
-      updated = [...users, user];
+      updated = [user, ...users];
     }
     setUsers(updated);
     saveStoredUsers(updated);
-    showToast(`Data pengguna ${user.namaLengkap} berhasil disimpan.`);
+
+    // Kirim langsung ke Google Spreadsheet sheet "Pengguna"
+    if (pengaturan.gasWebAppUrl) {
+      import('./services/storageService').then(({ saveSingleUserToSheet }) => {
+        saveSingleUserToSheet(pengaturan.gasWebAppUrl, user);
+      });
+    }
+    triggerAutoSync(undefined, undefined, undefined, updated);
+
+    // Perbarui sesi aktif jika pengguna yang diedit adalah akun yang sedang aktif
+    if (activeUser.id === user.id) {
+      setActiveUser(user);
+    }
+    if (currentUser?.id === user.id) {
+      setCurrentUser(user);
+      setAuthSession(user);
+    }
+
+    const logAction = isEdit ? 'EDIT' : 'TAMBAH';
+    const updatedLogs = addStoredLog(
+      activeUser.namaLengkap,
+      logAction,
+      'SISTEM',
+      `${isEdit ? 'Memperbarui' : 'Menambahkan'} akun pengguna: ${user.namaLengkap} (@${user.username})`
+    );
+    setLogs(updatedLogs);
+    showToast(`Akun ${user.namaLengkap} berhasil disimpan & disinkronkan ke Google Spreadsheet!`);
   };
 
   const handleDeleteUser = (id: string) => {
+    const target = users.find((u) => u.id === id);
     const updated = users.filter((u) => u.id !== id);
     setUsers(updated);
     saveStoredUsers(updated);
-    showToast('Pengguna berhasil dihapus.');
+
+    // Hapus dari Google Spreadsheet sheet "Pengguna"
+    if (pengaturan.gasWebAppUrl) {
+      import('./services/storageService').then(({ deleteSingleUserFromSheet }) => {
+        deleteSingleUserFromSheet(pengaturan.gasWebAppUrl, id);
+      });
+    }
+    triggerAutoSync(undefined, undefined, undefined, updated);
+
+    const updatedLogs = addStoredLog(
+      activeUser.namaLengkap,
+      'HAPUS',
+      'SISTEM',
+      `Menghapus akun pengguna: ${target ? target.namaLengkap : id}`
+    );
+    setLogs(updatedLogs);
+    showToast('Pengguna berhasil dihapus & disinkronkan ke Spreadsheet.', 'info');
+  };
+
+  // Sinkronkan Seluruh Pengguna ke Google Spreadsheet
+  const handleSyncUsersToSheet = async () => {
+    if (!pengaturan.gasWebAppUrl) {
+      setActiveTab('pengaturan');
+      showToast('Masukkan URL Web App Google Apps Script di Pengaturan terlebih dahulu.', 'info');
+      return;
+    }
+
+    setIsSyncingUsers(true);
+    const { syncUsersToGoogleSheet } = await import('./services/storageService');
+    const res = await syncUsersToGoogleSheet(pengaturan.gasWebAppUrl, users);
+    setIsSyncingUsers(false);
+
+    if (res.success) {
+      showToast(res.message, 'success');
+      const updatedLogs = addStoredLog(
+        activeUser.namaLengkap,
+        'SYNC',
+        'SISTEM',
+        'Sinkronisasi manual akun pengguna ke Google Spreadsheet'
+      );
+      setLogs(updatedLogs);
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  // Tarik Data Pengguna Terbaru dari Google Spreadsheet
+  const handlePullUsersFromSheet = async () => {
+    if (!pengaturan.gasWebAppUrl) {
+      setActiveTab('pengaturan');
+      showToast('Masukkan URL Web App Google Apps Script di Pengaturan terlebih dahulu.', 'info');
+      return;
+    }
+
+    setIsSyncingUsers(true);
+    const { pullDataFromGoogleSheet } = await import('./services/storageService');
+    const res = await pullDataFromGoogleSheet(pengaturan.gasWebAppUrl);
+    setIsSyncingUsers(false);
+
+    if (res.success && res.data?.pengguna && res.data.pengguna.length > 0) {
+      const mergedUsers = res.data.pengguna.map((pu: AdminUser) => {
+        const existing = users.find(
+          (u) => u.id === pu.id || u.username.toLowerCase() === (pu.username || '').toLowerCase()
+        );
+        return {
+          ...pu,
+          password: pu.password || existing?.password || 'admin123',
+        };
+      });
+      setUsers(mergedUsers);
+      saveStoredUsers(mergedUsers);
+      showToast('✅ Berhasil menarik & memperbarui data pengguna dari Google Spreadsheet!', 'success');
+    } else {
+      showToast(res.message || 'Tidak ada data pengguna baru dari Spreadsheet.', 'info');
+    }
   };
 
   // Save Pengaturan Real-Time ke Google Spreadsheet
@@ -379,9 +481,30 @@ export default function App() {
   const handleDataPulled = (data: any, isSilent: boolean = false) => {
     if (data.pengaturan && Object.keys(data.pengaturan).length > 0) {
       setPengaturan((prev) => {
+        // Cek apakah data dari spreadsheet membawa gambar kop surat yang benar-benar valid
+        const incomingKop = data.pengaturan.kopSuratUrl;
+        const isIncomingKopValid =
+          typeof incomingKop === 'string' &&
+          incomingKop.trim() !== '' &&
+          !incomingKop.includes('[Gambar Kop') &&
+          (incomingKop.startsWith('data:image/') || incomingKop.startsWith('http://') || incomingKop.startsWith('https://'));
+
+        // Lindungi kop surat lokal agar TIDAK PERNAH terhapus oleh sinkronisasi otomatis jika sheet kosong
+        const finalKopSuratUrl = isIncomingKopValid
+          ? incomingKop
+          : (prev.kopSuratUrl && prev.kopSuratUrl.trim() !== '' ? prev.kopSuratUrl : '');
+
+        const finalTipeKopSurat =
+          finalKopSuratUrl !== ''
+            ? (prev.kopSuratUrl ? prev.tipeKopSurat || 'gambar' : (data.pengaturan.tipeKopSurat || 'gambar'))
+            : (data.pengaturan.tipeKopSurat || 'teks_otomatis');
+
         const merged: PengaturanSekolah = {
           ...prev,
           ...data.pengaturan,
+          kopSuratUrl: finalKopSuratUrl,
+          tipeKopSurat: finalTipeKopSurat,
+          subKopText: data.pengaturan.subKopText || prev.subKopText,
           namaSekolah: data.pengaturan.namaSekolah || prev.namaSekolah,
           npsn: String(data.pengaturan.npsn || prev.npsn),
           alamat: data.pengaturan.alamat || prev.alamat,
@@ -405,8 +528,31 @@ export default function App() {
       saveStoredRuangan(data.ruangan);
     }
     if (data.pengguna && Array.isArray(data.pengguna) && data.pengguna.length > 0) {
-      setUsers(data.pengguna);
-      saveStoredUsers(data.pengguna);
+      setUsers((prevUsers) => {
+        const mergedUsers = data.pengguna.map((pu: AdminUser) => {
+          const existing = prevUsers.find(
+            (u) => u.id === pu.id || u.username.toLowerCase() === (pu.username || '').toLowerCase()
+          );
+          return {
+            ...pu,
+            password: pu.password || existing?.password || 'admin123',
+          };
+        });
+        saveStoredUsers(mergedUsers);
+
+        // Update active/current user if credentials or details updated from spreadsheet
+        if (currentUser) {
+          const currentMatch = mergedUsers.find(
+            (u: AdminUser) => u.id === currentUser.id || u.username.toLowerCase() === currentUser.username.toLowerCase()
+          );
+          if (currentMatch) {
+            setCurrentUser(currentMatch);
+            setActiveUser(currentMatch);
+            setAuthSession(currentMatch);
+          }
+        }
+        return mergedUsers;
+      });
     }
     if (!isSilent) {
       showToast('Data berhasil diperbarui dari Google Spreadsheet!', 'success');
@@ -556,6 +702,7 @@ export default function App() {
               kategoriList={kategoriList}
               ruanganList={ruanganList}
               pengaturan={pengaturan}
+              onUpdatePengaturan={handleSavePengaturan}
             />
           )}
 
@@ -563,6 +710,10 @@ export default function App() {
             <AdminView
               users={users}
               activeUser={activeUser}
+              pengaturan={pengaturan}
+              isSyncingUsers={isSyncingUsers}
+              onSyncUsers={handleSyncUsersToSheet}
+              onPullUsersFromSheet={handlePullUsersFromSheet}
               onSaveUser={handleSaveUser}
               onDeleteUser={handleDeleteUser}
               onSelectActiveUser={setActiveUser}

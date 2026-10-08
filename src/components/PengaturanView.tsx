@@ -7,8 +7,10 @@ import {
   Download,
   ExternalLink,
   FileCode2,
+  FileUp,
   HardDrive,
   HelpCircle,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -17,10 +19,12 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { AdminUser, Barang, Kategori, PengaturanSekolah, Ruangan } from '../types/inventory';
 import { pullDataFromGoogleSheet, syncAllToGoogleSheet, testGasConnection } from '../services/storageService';
+import { processImageFile } from '../utils/imageUtils';
 import { NavTab } from './Sidebar';
 
 interface PengaturanViewProps {
@@ -584,6 +588,186 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               onChange={(e) => setForm({ ...form, emailSekolah: e.target.value })}
               className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+        </div>
+
+        {/* ==================================================== */}
+        {/* KOP SURAT DOKUMEN & LAPORAN RESMI                    */}
+        {/* ==================================================== */}
+        <div className="pt-6 border-t border-slate-200 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-indigo-600" />
+                <span>Kop Surat Dokumen & Laporan Resmi (Buku Induk & KIR)</span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pilih format kop surat untuk dokumen laporan: upload gambar banner kop surat atau gunakan format teks resmi bergaris ganda.
+              </p>
+            </div>
+            {form.kopSuratUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Hapus gambar kop surat dan kembali ke format kop teks standar?')) {
+                    const updated = {
+                      ...form,
+                      kopSuratUrl: '',
+                      tipeKopSurat: 'teks_otomatis' as const,
+                    };
+                    setForm(updated);
+                    onSavePengaturan(updated);
+                  }
+                }}
+                className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus Gambar Kop</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Pilihan Mode Kop */}
+            <div className="space-y-3">
+              <label className="font-bold text-slate-700 block">Pilihan Format Kop Surat:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, tipeKopSurat: 'gambar' })}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    form.tipeKopSurat !== 'teks_otomatis' && form.kopSuratUrl
+                      ? 'border-indigo-600 bg-indigo-50/70 font-bold text-indigo-900 ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <p className="font-bold flex items-center gap-1.5 text-xs">
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Gambar Kop</span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1 font-normal">
+                    Upload file gambar kop surat resmi (banner utuh).
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, tipeKopSurat: 'teks_otomatis' })}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    form.tipeKopSurat === 'teks_otomatis' || !form.kopSuratUrl
+                      ? 'border-indigo-600 bg-indigo-50/70 font-bold text-indigo-900 ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <p className="font-bold flex items-center gap-1.5 text-xs">
+                    <School className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Teks Otomatis</span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1 font-normal">
+                    Format tipografi resmi dengan garis ganda tebal.
+                  </p>
+                </button>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Teks Baris Atas / Yayasan Naungan:
+                </label>
+                <input
+                  type="text"
+                  value={form.subKopText || ''}
+                  onChange={(e) => setForm({ ...form, subKopText: e.target.value })}
+                  placeholder="Contoh: PEMERINTAH PROVINSI LAMPUNG / YAYASAN PONDOK PESANTREN AL-HIKAM"
+                  className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs"
+                />
+              </div>
+
+              {/* Upload input */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">
+                  Unggah File Kop Surat (Banner):
+                </label>
+                <label className="flex items-center justify-center gap-2 p-3.5 bg-slate-50 hover:bg-indigo-50/50 border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl cursor-pointer transition-all text-xs font-semibold text-slate-700">
+                  <FileUp className="w-4 h-4 text-indigo-600" />
+                  <span>Pilih File Gambar (PNG, JPG, WebP)</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const dataUrl = await processImageFile(file, 1200, 280, 0.85);
+                          const updated = {
+                            ...form,
+                            kopSuratUrl: dataUrl,
+                            tipeKopSurat: 'gambar' as const,
+                          };
+                          setForm(updated);
+                          onSavePengaturan(updated);
+                        } catch (err: any) {
+                          alert(err.message || 'Gagal memproses gambar');
+                        } finally {
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                  />
+                </label>
+
+                {/* Alternatif Input URL */}
+                <div>
+                  <label className="text-[11px] text-slate-500 font-semibold block mb-1">
+                    Atau Masukkan Tautan / URL Gambar Kop Surat:
+                  </label>
+                  <input
+                    type="text"
+                    value={form.kopSuratUrl || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const updated = {
+                        ...form,
+                        kopSuratUrl: val,
+                        tipeKopSurat: val.trim() ? ('gambar' as const) : ('teks_otomatis' as const),
+                      };
+                      setForm(updated);
+                    }}
+                    placeholder="https://... atau data:image/..."
+                    className="w-full p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pratinjau Kop Surat */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+              <span className="font-bold text-slate-700 block">Pratinjau Kop Surat pada Dokumen:</span>
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs min-h-[90px] flex items-center justify-center">
+                {form.kopSuratUrl && form.tipeKopSurat !== 'teks_otomatis' ? (
+                  <img
+                    src={form.kopSuratUrl}
+                    alt="Pratinjau Kop Surat"
+                    className="max-h-24 max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center py-2 border-b-2 border-slate-800 w-full">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {form.subKopText || 'PEMERINTAH PROVINSI LAMPUNG / YAYASAN PENDIDIKAN'}
+                    </p>
+                    <h5 className="font-extrabold text-sm text-slate-900 uppercase">
+                      {form.namaSekolah || 'SMK AL-HIKAM SENDANG AGUNG'}
+                    </h5>
+                    <p className="text-[10px] text-slate-600">
+                      NPSN: {form.npsn || '70058018'} • {form.alamat || 'Sendang Mulyo'}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 italic">
+                * Kop surat ini akan otomatis dicetak di bagian paling atas setiap dokumen Laporan Buku Induk, KIR Ruangan, dan Rekapitulasi Sarpras.
+              </p>
+            </div>
           </div>
         </div>
       </form>

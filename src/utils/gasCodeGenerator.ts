@@ -152,6 +152,14 @@ function handleApiGet(params) {
       result = simpanBarang(item);
     } else if (action === 'deleteBarang' || action === 'hapusBarang') {
       result = hapusBarang(params.id);
+    } else if (action === 'savePengguna' || action === 'simpanPengguna') {
+      const user = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || {});
+      result = simpanPengguna(user);
+    } else if (action === 'deletePengguna' || action === 'hapusPengguna') {
+      result = hapusPengguna(params.id);
+    } else if (action === 'syncPengguna') {
+      const users = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || []);
+      result = syncPenggunaData(users);
     } else if (action === 'savePengaturan') {
       const item = typeof params.data === 'string' ? JSON.parse(params.data) : (params.data || {});
       result = simpanPengaturan(item);
@@ -183,6 +191,12 @@ function doPost(e) {
       result = simpanBarang(payload);
     } else if (action === 'deleteBarang' || action === 'hapusBarang') {
       result = hapusBarang(payload.id || payload);
+    } else if (action === 'savePengguna' || action === 'simpanPengguna') {
+      result = simpanPengguna(payload);
+    } else if (action === 'deletePengguna' || action === 'hapusPengguna') {
+      result = hapusPengguna(payload.id || payload);
+    } else if (action === 'syncPengguna') {
+      result = syncPenggunaData(payload);
     } else if (action === 'savePengaturan') {
       result = simpanPengaturan(payload);
     } else if (action === 'syncAll') {
@@ -267,8 +281,57 @@ function syncAllData(data) {
     sRng.getRange(2, 1, rows.length, 8).setValues(rows);
   }
 
+  if (data.pengguna && Array.isArray(data.pengguna) && data.pengguna.length > 0) {
+    const sUsr = ss.getSheetByName(SHEETS.PENGGUNA) || ss.insertSheet(SHEETS.PENGGUNA);
+    formatHeader(sUsr, ['ID', 'Username', 'Password', 'Nama_Lengkap', 'Email', 'Role', 'Status', 'Nomor_Telepon', 'Terakhir_Login'], '#0284C7');
+    if (sUsr.getLastRow() > 1) sUsr.deleteRows(2, sUsr.getLastRow() - 1);
+    const rows = data.pengguna.map(function(u) {
+      return [
+        u.id || ('USR-' + Date.now()),
+        u.username || '',
+        u.password || 'admin123',
+        u.namaLengkap || '',
+        u.email || '',
+        u.role || 'Petugas Inventaris',
+        u.status || 'Aktif',
+        u.nomorTelepon || '',
+        u.terakhirLogin || new Date().toISOString().slice(0, 10)
+      ];
+    });
+    sUsr.getRange(2, 1, rows.length, 9).setValues(rows);
+  }
+
   catatLog('SYNC_ALL', 'Sinkronisasi penuh seluruh data dari Vercel');
   return { success: true, message: 'Semua data berhasil disinkronkan ke Google Spreadsheet!' };
+}
+
+/**
+ * Sinkronisasi Khusus Data Pengguna ke Sheet Pengguna
+ */
+function syncPenggunaData(users) {
+  if (!users || !Array.isArray(users)) return { success: false, message: 'Data pengguna tidak valid' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sUsr = ss.getSheetByName(SHEETS.PENGGUNA) || ss.insertSheet(SHEETS.PENGGUNA);
+  formatHeader(sUsr, ['ID', 'Username', 'Password', 'Nama_Lengkap', 'Email', 'Role', 'Status', 'Nomor_Telepon', 'Terakhir_Login'], '#0284C7');
+  if (sUsr.getLastRow() > 1) sUsr.deleteRows(2, sUsr.getLastRow() - 1);
+  if (users.length > 0) {
+    const rows = users.map(function(u) {
+      return [
+        u.id || ('USR-' + Date.now()),
+        u.username || '',
+        u.password || 'admin123',
+        u.namaLengkap || '',
+        u.email || '',
+        u.role || 'Petugas Inventaris',
+        u.status || 'Aktif',
+        u.nomorTelepon || '',
+        u.terakhirLogin || new Date().toISOString().slice(0, 10)
+      ];
+    });
+    sUsr.getRange(2, 1, rows.length, 9).setValues(rows);
+  }
+  catatLog('SYNC_PENGGUNA', 'Sinkronisasi daftar akun pengguna ke Google Spreadsheet');
+  return { success: true, message: 'Data seluruh pengguna berhasil disinkronkan ke Google Spreadsheet!' };
 }
 
 /**
@@ -280,6 +343,7 @@ function getInitialData() {
     barang: getSheetDataAsObjects(ss, SHEETS.BARANG),
     kategori: getSheetDataAsObjects(ss, SHEETS.KATEGORI),
     ruangan: getSheetDataAsObjects(ss, SHEETS.RUANGAN),
+    pengguna: getSheetDataAsObjects(ss, SHEETS.PENGGUNA),
     pengaturan: getPengaturanAsObject(ss),
     logs: getSheetDataAsObjects(ss, SHEETS.LOG).slice(-30)
   };
@@ -431,6 +495,54 @@ function hapusRuangan(id) {
 }
 
 /**
+ * Simpan / Perbarui Pengguna Real-Time
+ */
+function simpanPengguna(user) {
+  if (!user) return { success: false, message: 'Data pengguna kosong' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEETS.PENGGUNA);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.PENGGUNA);
+    formatHeader(sheet, ['ID', 'Username', 'Password', 'Nama_Lengkap', 'Email', 'Role', 'Status', 'Nomor_Telepon', 'Terakhir_Login'], '#0284C7');
+  }
+
+  const lastRow = sheet.getLastRow();
+  const rowData = [
+    user.id || ('USR-' + Date.now()),
+    user.username || '',
+    user.password || 'admin123',
+    user.namaLengkap || '',
+    user.email || '',
+    user.role || 'Petugas Inventaris',
+    user.status || 'Aktif',
+    user.nomorTelepon || '',
+    user.terakhirLogin || new Date().toISOString().slice(0, 10)
+  ];
+
+  if (lastRow > 1) {
+    const ids = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(user.id) || String(ids[i][1]).toLowerCase() === String(user.username).toLowerCase()) {
+        sheet.getRange(i + 2, 1, 1, rowData.length).setValues([rowData]);
+        catatLog('UPDATE_PENGGUNA', 'Memperbarui pengguna: ' + user.namaLengkap);
+        return { success: true, message: 'Data pengguna berhasil diperbarui di spreadsheet' };
+      }
+    }
+  }
+
+  sheet.appendRow(rowData);
+  catatLog('TAMBAH_PENGGUNA', 'Menambahkan pengguna baru: ' + user.namaLengkap);
+  return { success: true, message: 'Pengguna baru berhasil ditambahkan di spreadsheet' };
+}
+
+/**
+ * Hapus Pengguna
+ */
+function hapusPengguna(id) {
+  return deleteRowById(SHEETS.PENGGUNA, id);
+}
+
+/**
  * Simpan Profil Pengaturan Sekolah Real-Time
  */
 function simpanPengaturan(item) {
@@ -447,7 +559,11 @@ function simpanPengaturan(item) {
   }
 
   const entries = Object.keys(item).map(function(key) {
-    return [key, String(item[key] || ''), ''];
+    var val = String(item[key] || '');
+    if (val.length > 49000) {
+      val = val.substring(0, 49000);
+    }
+    return [key, val, ''];
   });
 
   if (entries.length > 0) {
@@ -467,16 +583,19 @@ function setupDatabase() {
   let sPengaturan = ss.getSheetByName(SHEETS.PENGATURAN) || ss.insertSheet(SHEETS.PENGATURAN);
   formatHeader(sPengaturan, ['Kunci_Pengaturan', 'Nilai_Pengaturan', 'Keterangan'], '#1E293B');
   if (sPengaturan.getLastRow() <= 1) {
-    sPengaturan.getRange(2, 1, 9, 3).setValues([
+    sPengaturan.getRange(2, 1, 12, 3).setValues([
       ['namaSekolah', 'SMK AL-HIKAM SENDANG AGUNG', 'Nama Resmi Sekolah'],
-      ['npsn', '69900123', 'Nomor Pokok Sekolah Nasional'],
-      ['alamat', 'Jl. Ponpes Al-Hikam, Sendang Agung', 'Alamat Lengkap'],
+      ['npsn', '70058018', 'Nomor Pokok Sekolah Nasional'],
+      ['alamat', 'SENDANG MULYO KEC.SENDANG AGUNG KAB.LAMPUNG TENGAH', 'Alamat Lengkap'],
       ['kepalaSekolah', 'Kepala Sekolah SMK Al-Hikam', 'Nama Kepala Sekolah'],
       ['nipKepalaSekolah', '-', 'NIP Kepala Sekolah'],
-      ['wakaSarpras', 'Waka Sarpras SMK Al-Hikam', 'Wakil Kepala Urusan Sarpras'],
-      ['nipWakaSarpras', '-', 'NIP Waka Sarpras'],
-      ['kontakSekolah', '0812-7890-1234', 'Telepon / Kontak'],
-      ['emailSekolah', 'smkalhikam.sendangagung@gmail.com', 'Email Resmi']
+      ['wakaSarpras', 'Bambang Supriyadi, S.Pd.', 'Wakil Kepala Urusan Sarpras'],
+      ['nipWakaSarpras', '19820412 200604 1 015', 'NIP Waka Sarpras'],
+      ['kontakSekolah', '(022) 7564321', 'Telepon / Kontak'],
+      ['emailSekolah', 'smkalhikam.sendangagung@gmail.com', 'Email Resmi'],
+      ['subKopText', 'PEMERINTAH PROVINSI LAMPUNG / YAYASAN PONDOK PESANTREN AL-HIKAM', 'Teks Baris Atas Kop Surat'],
+      ['tipeKopSurat', 'teks_otomatis', 'Format Kop Surat: gambar / teks_otomatis'],
+      ['kopSuratUrl', '', 'URL atau Gambar Kop Surat']
     ]);
   }
 
@@ -522,12 +641,24 @@ function setupDatabase() {
     ]);
   }
 
-  // 5. Sheet Log
+  // 5. Sheet Pengguna
+  let sPengguna = ss.getSheetByName(SHEETS.PENGGUNA) || ss.insertSheet(SHEETS.PENGGUNA);
+  formatHeader(sPengguna, ['ID', 'Username', 'Password', 'Nama_Lengkap', 'Email', 'Role', 'Status', 'Nomor_Telepon', 'Terakhir_Login'], '#0284C7');
+  if (sPengguna.getLastRow() <= 1) {
+    sPengguna.getRange(2, 1, 4, 9).setValues([
+      ['USR-01', 'admin', 'admin123', 'Bambang Supriyadi, S.Pd.', 'sarpras@smkalhikam.sch.id', 'Super Admin', 'Aktif', '0812-3456-7890', 'Hari Ini'],
+      ['USR-02', 'sarpras', 'sarpras123', 'Rudi Hartono, S.Kom.', 'petugas.sarpras@smkalhikam.sch.id', 'Admin Sarpras', 'Aktif', '0813-8899-1234', 'Hari Ini'],
+      ['USR-03', 'petugas', 'petugas123', 'Nurul Hidayati, S.I.Pust.', 'inventaris@smkalhikam.sch.id', 'Petugas Inventaris', 'Aktif', '0857-9912-3344', 'Hari Ini'],
+      ['USR-04', 'kepsek', 'kepsek123', 'Kepala Sekolah SMK Al-Hikam', 'kepsek@smkalhikam.sch.id', 'Kepala Sekolah', 'Aktif', '0811-2233-4455', 'Hari Ini']
+    ]);
+  }
+
+  // 6. Sheet Log
   let sLog = ss.getSheetByName(SHEETS.LOG) || ss.insertSheet(SHEETS.LOG);
   formatHeader(sLog, ['ID', 'Waktu', 'Aksi', 'Keterangan', 'Pengguna'], '#475569');
 
   catatLog('SETUP_DATABASE', 'Inisialisasi tabel database inventaris sekolah berhasil');
-  SpreadsheetApp.getUi().alert('✅ Database Inventaris Sekolah Berhasil Diinisialisasi!\\n\\nSemua tabel (Barang, Kategori, Ruangan, Pengaturan, Log) siap digunakan.');
+  SpreadsheetApp.getUi().alert('✅ Database Inventaris Sekolah Berhasil Diinisialisasi!\\n\\nSemua tabel (Barang, Kategori, Ruangan, Pengguna, Pengaturan, Log) siap digunakan.');
 }
 
 /**

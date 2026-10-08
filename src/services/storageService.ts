@@ -24,6 +24,7 @@ const STORAGE_KEYS = {
   LOGS: 'sis_inventaris_logs',
   ACTIVE_USER: 'sis_inventaris_active_user',
   AUTH_USER: 'sis_inventaris_auth_session',
+  KOP_SURAT_BACKUP: 'sis_inventaris_kop_surat_image_backup',
 };
 
 export const getAuthSession = (): AdminUser | null => {
@@ -67,6 +68,18 @@ export const getStoredPengaturan = (): PengaturanSekolah => {
       parsed.autoSync = true;
       localStorage.setItem(STORAGE_KEYS.PENGATURAN, JSON.stringify(parsed));
     }
+
+    // Pulihkan dari cadangan lokal terpisah jika kop surat lokal kosong atau terhapus tidak sengaja
+    try {
+      const backupKop = localStorage.getItem(STORAGE_KEYS.KOP_SURAT_BACKUP);
+      if (backupKop && (!parsed.kopSuratUrl || parsed.kopSuratUrl.startsWith('['))) {
+        parsed.kopSuratUrl = backupKop;
+        if (!parsed.tipeKopSurat) parsed.tipeKopSurat = 'gambar';
+      }
+    } catch (err) {
+      // ignore
+    }
+
     return parsed;
   } catch (e) {
     return DEFAULT_PENGATURAN;
@@ -74,7 +87,22 @@ export const getStoredPengaturan = (): PengaturanSekolah => {
 };
 
 export const saveStoredPengaturan = (data: PengaturanSekolah) => {
-  localStorage.setItem(STORAGE_KEYS.PENGATURAN, JSON.stringify(data));
+  try {
+    // Simpan salinan cadangan gambar kop surat di key persisten terpisah
+    if (data.kopSuratUrl && typeof data.kopSuratUrl === 'string' && (data.kopSuratUrl.startsWith('data:image/') || data.kopSuratUrl.startsWith('http'))) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.KOP_SURAT_BACKUP, data.kopSuratUrl);
+      } catch (err) {
+        console.warn('Backup kop surat key full', err);
+      }
+    } else if (data.kopSuratUrl === '') {
+      localStorage.removeItem(STORAGE_KEYS.KOP_SURAT_BACKUP);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.PENGATURAN, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Gagal menyimpan pengaturan ke localStorage:', e);
+  }
 };
 
 export const getStoredKategori = (): Kategori[] => {
@@ -382,7 +410,7 @@ export async function savePengaturanToSheet(url: string, pengaturan: PengaturanS
   const cleanUrl = normalized.trim();
 
   try {
-    // Kirim via POST
+    // Kirim via POST (mendukung payload besar termasuk gambar kop surat)
     await fetch(cleanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -392,12 +420,114 @@ export async function savePengaturanToSheet(url: string, pengaturan: PengaturanS
     return true;
   } catch (e) {
     try {
-      // Fallback GET
-      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=savePengaturan&data=${encodeURIComponent(JSON.stringify(pengaturan))}`;
+      // Fallback GET (hindari URL kepanjangan jika terdapat base64 kop surat besar)
+      const sanitized = { ...pengaturan };
+      if (sanitized.kopSuratUrl && sanitized.kopSuratUrl.startsWith('data:')) {
+        sanitized.kopSuratUrl = '[Gambar Kop Tersimpan Lokal]';
+      }
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=savePengaturan&data=${encodeURIComponent(JSON.stringify(sanitized))}`;
       await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
       return true;
     } catch (err) {
       return false;
+    }
+  }
+}
+
+export async function saveSingleUserToSheet(url: string, user: AdminUser): Promise<boolean> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) return false;
+  const cleanUrl = normalized.trim();
+
+  try {
+    // Kirim via POST
+    await fetch(cleanUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'savePengguna', data: user }),
+      mode: 'no-cors',
+    });
+    return true;
+  } catch (e) {
+    try {
+      // Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=savePengguna&data=${encodeURIComponent(JSON.stringify(user))}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+}
+
+export async function deleteSingleUserFromSheet(url: string, id: string): Promise<boolean> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) return false;
+  const cleanUrl = normalized.trim();
+
+  try {
+    // Kirim via POST
+    await fetch(cleanUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deletePengguna', data: { id } }),
+      mode: 'no-cors',
+    });
+    return true;
+  } catch (e) {
+    try {
+      // Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=deletePengguna&id=${encodeURIComponent(id)}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+}
+
+export async function syncUsersToGoogleSheet(
+  url: string,
+  users: AdminUser[]
+): Promise<{ success: boolean; message: string }> {
+  const normalized = normalizeGasUrl(url);
+  if (!normalized || !normalized.startsWith('http')) {
+    return { success: false, message: 'URL Google Apps Script belum valid di Pengaturan.' };
+  }
+
+  const cleanUrl = normalized.trim();
+  const payload = {
+    action: 'syncPengguna',
+    data: users,
+  };
+
+  try {
+    // 1. Coba POST
+    await fetch(cleanUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      mode: 'no-cors',
+    });
+
+    return {
+      success: true,
+      message: '✅ Seluruh data akun pengguna berhasil disinkronkan ke sheet "Pengguna" di Google Spreadsheet!',
+    };
+  } catch (err: any) {
+    try {
+      // 2. Fallback GET
+      const getUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=syncPengguna&data=${encodeURIComponent(JSON.stringify(users))}`;
+      await fetch(getUrl, { method: 'GET', mode: 'no-cors' });
+      return {
+        success: true,
+        message: '✅ Berhasil disinkronkan ke Google Spreadsheet via channel cadangan!',
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        message: `Gagal menyinkronkan pengguna: ${err.message}`,
+      };
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   FileText,
   FolderPlus,
   Layers,
+  Loader2,
   MapPin,
   Package,
   Plus,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Barang, Kategori, PengaturanSekolah, Ruangan } from '../types/inventory';
 import { formatDateIndo, formatRupiah } from '../utils/helpers';
+import { exportElementToPdf } from '../utils/pdfExport';
 
 interface KategoriRuanganViewProps {
   kategoriList: Kategori[];
@@ -66,6 +68,7 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
 
   // KIR (Kartu Inventaris Ruangan) Print View State
   const [kirRuangan, setKirRuangan] = useState<Ruangan | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Helper counts
   const getBarangByKat = (katId: string) => barangList.filter((b) => b.idKategori === katId);
@@ -154,6 +157,32 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
   // Trigger Print & Download for KIR
   const handlePrintKIR = () => {
     window.print();
+  };
+
+  const handleDownloadKIRPdf = async () => {
+    const printEl = document.getElementById('printableKir');
+    if (!printEl || !kirRuangan) return;
+
+    const cleanSchool = (pengaturan.namaSekolah || 'SEKOLAH').replace(/[^a-zA-Z0-9]/g, '_');
+    const cleanRuang = kirRuangan.namaRuangan.replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const pdfFileName = `KIR_${cleanRuang}_${cleanSchool}_${dateStr}.pdf`;
+
+    try {
+      setIsExportingPdf(true);
+      await exportElementToPdf(printEl, {
+        fileName: pdfFileName,
+        orientation: 'portrait',
+        format: 'a4',
+        marginMm: 8,
+        quality: 2,
+      });
+    } catch (err) {
+      console.error('Gagal membuat PDF KIR:', err);
+      handlePrintKIR();
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const handleDownloadKIR = () => {
@@ -451,12 +480,25 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleDownloadKIR}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-                  title="Unduh file dokumen KIR siap cetak"
+                  onClick={handleDownloadKIRPdf}
+                  disabled={isExportingPdf}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60"
+                  title="Unduh dokumen KIR dalam format PDF resmi"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Unduh Dokumen KIR</span>
+                  {isExportingPdf ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span>{isExportingPdf ? 'Membuat PDF...' : 'Unduh Format PDF'}</span>
+                </button>
+                <button
+                  onClick={handleDownloadKIR}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-medium shadow-xs cursor-pointer"
+                  title="Unduh file dokumen KIR HTML offline"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Unduh</span> HTML
                 </button>
                 <button
                   onClick={handlePrintKIR}

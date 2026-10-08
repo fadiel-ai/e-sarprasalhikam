@@ -7,8 +7,10 @@ import {
   Calendar,
   CheckSquare,
   Columns,
+  Download,
   Filter,
   Layers,
+  Loader2,
   Printer,
   QrCode,
   Scan,
@@ -24,6 +26,7 @@ import {
   PengaturanSekolah,
   Ruangan,
 } from '../types/inventory';
+import { exportElementToPdf } from '../utils/pdfExport';
 
 interface BarcodeViewProps {
   barangList: Barang[];
@@ -76,6 +79,8 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
     }
   }, [targetScope, selectedRuanganId, selectedKategoriId, barangList]);
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   // Selected items to print
   const itemsToPrint = barangList.filter((b) => config.selectedIds.includes(b.id));
 
@@ -100,6 +105,34 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
     window.print();
   };
 
+  const handleDownloadPdf = async () => {
+    const printEl = document.getElementById('printArea');
+    if (!printEl || itemsToPrint.length === 0) {
+      alert('Tidak ada label barcode yang siap diunduh.');
+      return;
+    }
+
+    const cleanSchool = (pengaturan.namaSekolah || 'SEKOLAH').replace(/[^a-zA-Z0-9]/g, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const pdfFileName = `Label_Barcode_${itemsToPrint.length}_Item_${cleanSchool}_${dateStr}.pdf`;
+
+    try {
+      setIsExportingPdf(true);
+      await exportElementToPdf(printEl, {
+        fileName: pdfFileName,
+        orientation: 'portrait',
+        format: 'a4',
+        marginMm: 6,
+        quality: 2,
+      });
+    } catch (err) {
+      console.error('Gagal membuat PDF barcode:', err);
+      handlePrint();
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner (Hidden in print) */}
@@ -116,12 +149,25 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
 
         <div className="flex items-center gap-2">
           <button
+            onClick={handleDownloadPdf}
+            disabled={itemsToPrint.length === 0 || isExportingPdf}
+            className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+            title="Unduh seluruh lembar stiker barcode langsung dalam file PDF"
+          >
+            {isExportingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>{isExportingPdf ? 'Membuat PDF...' : 'Unduh Format PDF'}</span>
+          </button>
+          <button
             onClick={handlePrint}
             disabled={itemsToPrint.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>Cetak {itemsToPrint.length} Label Sekarang (Print / PDF)</span>
+            <span>Cetak ({itemsToPrint.length} Label)</span>
           </button>
         </div>
       </div>
