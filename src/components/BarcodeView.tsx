@@ -102,7 +102,110 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    const printEl = document.getElementById('printArea');
+    if (!printEl) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute(
+      'style',
+      'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;z-index:-1000;'
+    );
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const cleanSchool = pengaturan.namaSekolah || 'INVENTARIS SEKOLAH';
+
+    // Ambil semua style dari dokumen induk agar Tailwind/layout tampil persis
+    let styleTags = '';
+    document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
+      styleTags += el.outerHTML;
+    });
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="id">
+        <head>
+          <meta charset="UTF-8">
+          <title>Label Barcode - ${cleanSchool}</title>
+          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
+          ${styleTags}
+          <style>
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { margin: 0; padding: 6mm 4mm; background: #fff !important; color: #000 !important; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body * { visibility: visible !important; }
+            #printArea {
+              display: flex !important;
+              flex-wrap: wrap !important;
+              gap: ${config.columns === 3 ? '10px' : '14px'} !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+              visibility: visible !important;
+            }
+            .print-break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
+            @page { size: A4 portrait; margin: 6mm 4mm; }
+          </style>
+        </head>
+        <body>
+          <div id="printArea">
+            ${printEl.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    // Pastikan seluruh canvas dan gambar pada iframe digambar ulang dengan tepat
+    const origCanvases = printEl.querySelectorAll('canvas');
+    const iframeCanvases = doc.querySelectorAll('canvas');
+    origCanvases.forEach((orig, idx) => {
+      const dest = iframeCanvases[idx];
+      if (dest) {
+        dest.width = orig.width;
+        dest.height = orig.height;
+        const ctx = dest.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(orig, 0, 0);
+        }
+      }
+    });
+
+    // Tunggu semua gambar selesai dimuat sebelum trigger print
+    const iframeImages = Array.from(doc.querySelectorAll('img'));
+    const waitForImages = Promise.all(
+      iframeImages.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        });
+      })
+    );
+
+    waitForImages.then(() => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          window.print();
+        } finally {
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 3000);
+        }
+      }, 300);
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -124,10 +227,11 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
         format: 'a4',
         marginMm: 6,
         quality: 2,
+        showPageNumbers: false,
       });
     } catch (err) {
       console.error('Gagal membuat PDF barcode:', err);
-      handlePrint();
+      alert('Terjadi kendala saat menyusun PDF barcode: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsExportingPdf(false);
     }
@@ -422,13 +526,15 @@ export const BarcodeView: React.FC<BarcodeViewProps> = ({
         ) : (
           <div
             id="printArea"
-            className={`grid gap-3.5 ${
-              config.columns === 1
-                ? 'grid-cols-1'
-                : config.columns === 2
-                ? 'grid-cols-1 sm:grid-cols-2'
-                : 'grid-cols-1 sm:grid-cols-3'
-            }`}
+            className="w-full bg-white text-black print-area-container"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: config.columns === 3 ? '10px' : '14px',
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '2px',
+            }}
           >
             {itemsToPrint.map((b) => (
               <BarcodeLabelCard
@@ -452,29 +558,57 @@ interface BarcodeLabelCardProps {
 }
 
 const BarcodeLabelCard: React.FC<BarcodeLabelCardProps> = ({ barang, pengaturan, config }) => {
-  const barcodeSvgRef = useRef<SVGSVGElement | null>(null);
+  const barcodeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
-    if (config.format !== 'qr_only' && barcodeSvgRef.current) {
+    if (config.format !== 'qr_only' && barcodeCanvasRef.current) {
       try {
-        JsBarcode(barcodeSvgRef.current, barang.kodeBarang, {
+        const code = barang.kodeBarang || 'BARCODE';
+        const codeLen = code.length;
+        const totalModules = 55 + codeLen * 11;
+
+        // Tentukan lebar target barcode berdasarkan kolom dan format
+        let targetBarcodeWidth = 150;
+        if (config.columns === 3) {
+          targetBarcodeWidth = config.format === 'both' ? 140 : 200;
+        } else if (config.columns === 2) {
+          targetBarcodeWidth = config.format === 'both' ? 240 : 330;
+        } else {
+          targetBarcodeWidth = config.format === 'both' ? 420 : 620;
+        }
+
+        const calculatedBarWidth = targetBarcodeWidth / totalModules;
+        const barWidth = Math.max(0.65, Math.min(1.5, calculatedBarWidth));
+
+        // Render garis barcode saja (displayValue: false)
+        // Nilai kode barang ditampilkan sebagai elemen HTML teks di bawah barcode
+        // agar tidak pernah terpotong, buram, atau tertutup oleh clipping box canvas!
+        JsBarcode(barcodeCanvasRef.current, code, {
           format: 'CODE128',
           lineColor: '#000000',
-          width: 1.5,
-          height: 38,
-          displayValue: true,
-          fontSize: 10,
-          font: 'monospace',
+          width: barWidth,
+          height: config.columns === 3 ? 28 : 34,
+          displayValue: false,
           margin: 0,
         });
       } catch (err) {
-        console.error(err);
+        console.error('Gagal render barcode:', err);
       }
     }
 
     if (config.format !== 'barcode_only' && qrCanvasRef.current) {
       try {
+        const qrSize =
+          config.format === 'qr_only'
+            ? config.columns === 3
+              ? 66
+              : 80
+            : config.columns === 3
+            ? 44
+            : 52;
+
         QRCode.toCanvas(
           qrCanvasRef.current,
           JSON.stringify({
@@ -484,7 +618,7 @@ const BarcodeLabelCard: React.FC<BarcodeLabelCardProps> = ({ barang, pengaturan,
             y: barang.tahunPengadaan,
           }),
           {
-            width: config.format === 'qr_only' ? 80 : 54,
+            width: qrSize,
             margin: 1,
             color: {
               dark: '#000000',
@@ -493,60 +627,146 @@ const BarcodeLabelCard: React.FC<BarcodeLabelCardProps> = ({ barang, pengaturan,
           }
         );
       } catch (err) {
-        console.error(err);
+        console.error('Gagal render QR Code:', err);
       }
     }
-  }, [barang.kodeBarang, config.format]);
+  }, [barang.kodeBarang, config.format, config.columns]);
+
+  const cardWidth =
+    config.columns === 1
+      ? '100%'
+      : config.columns === 2
+      ? 'calc(50% - 8px)'
+      : 'calc(33.333% - 8px)';
 
   return (
-    <div className="bg-white border-2 border-slate-900 rounded-lg p-2.5 shadow-xs flex flex-col justify-between print-break-inside-avoid text-black font-sans">
+    <div
+      className="bg-white border-2 border-black rounded-lg p-3 shadow-none flex flex-col print-break-inside-avoid text-black font-sans shrink-0"
+      style={{
+        width: cardWidth,
+        maxWidth: cardWidth,
+        boxSizing: 'border-box',
+        minHeight: config.columns === 3 ? '165px' : '155px',
+        breakInside: 'avoid',
+        pageBreakInside: 'avoid',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/* Header Label (Kop Sekolah) */}
       {config.showSchoolName && (
-        <div className="border-b border-black pb-1 mb-1.5 text-center flex items-center justify-between gap-1">
-          <div className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center shrink-0">
-            <School className="w-3 h-3 text-black" />
+        <div
+          className="border-b border-black flex items-center justify-between gap-1.5 w-full"
+          style={{
+            borderBottom: '1.5px solid #000',
+            paddingBottom: '5px',
+            marginBottom: '6px',
+          }}
+        >
+          <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-300">
+            {pengaturan.logoUrl && !logoFailed ? (
+              <img
+                src={pengaturan.logoUrl}
+                alt="Logo"
+                className="w-full h-full object-contain p-0.5"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <School className="w-3.5 h-3.5 text-black" />
+            )}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-extrabold uppercase truncate tracking-tight">
+          <div className="min-w-0 flex-1 px-1 text-center">
+            <p
+              className="text-[10px] font-extrabold uppercase text-black tracking-tight"
+              style={{ lineHeight: '1.25', margin: 0, padding: 0 }}
+            >
               {pengaturan.namaSekolah || 'INVENTARIS SEKOLAH'}
             </p>
-            <p className="text-[8px] text-slate-600 truncate">
+            <p
+              className="text-[8px] text-slate-700 font-medium"
+              style={{ lineHeight: '1.25', margin: '2px 0 0 0', padding: 0 }}
+            >
               NPSN: {pengaturan.npsn || '20234567'} • LABEL ASET RESMI
             </p>
           </div>
-          <div className="text-[8px] font-mono font-bold bg-black text-white px-1 py-0.5 rounded shrink-0">
+          <div
+            className="text-[8px] font-mono font-bold bg-black text-white px-1.5 py-0.5 rounded shrink-0"
+            style={{ lineHeight: '1.2' }}
+          >
             KIR
           </div>
         </div>
       )}
 
-      {/* Item Title */}
-      <div className="mb-1.5">
-        <p className="text-[11px] font-bold leading-tight line-clamp-1">{barang.namaBarang}</p>
-        <p className="text-[9px] text-slate-600 truncate">
-          Merk: {barang.merk || '-'} {barang.nomorSeri && `• SN: ${barang.nomorSeri}`}
+      {/* Item Title & Specifications (Tampil utuh tanpa terpotong) */}
+      <div className="w-full" style={{ marginBottom: '6px' }}>
+        <p
+          className="text-[11px] font-bold text-black break-words"
+          style={{ lineHeight: '1.35', margin: 0, padding: 0 }}
+        >
+          {barang.namaBarang}
+        </p>
+        <p
+          className="text-[9px] text-slate-700 break-words"
+          style={{ lineHeight: '1.3', margin: '3px 0 0 0', padding: 0 }}
+        >
+          Merk: {barang.merk || '-'} {barang.nomorSeri ? `• SN: ${barang.nomorSeri}` : ''}
         </p>
       </div>
 
-      {/* Visual Codes (Barcode / QR) */}
-      <div className="flex items-center justify-center gap-2 py-1 my-auto">
+      {/* Visual Codes (Barcode / QR) & Human Readable Code Text */}
+      <div
+        className="flex items-center justify-center gap-3 my-auto w-full min-w-0"
+        style={{ padding: '4px 0', margin: 'auto 0' }}
+      >
         {config.format !== 'qr_only' && (
-          <div className="flex flex-col items-center overflow-hidden">
-            <svg ref={barcodeSvgRef} className="max-w-full h-auto"></svg>
+          <div className="flex-1 min-w-0 flex flex-col items-center justify-center">
+            <canvas
+              ref={barcodeCanvasRef}
+              className="max-w-full h-auto object-contain"
+              style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
+            ></canvas>
+            {/* Teks Kode Barang: Selalu terbaca utuh dan tidak pernah tertutup */}
+            <div
+              className="font-mono font-bold text-[9.5px] text-black text-center tracking-wider break-all select-all"
+              style={{ marginTop: '3px', lineHeight: '1.2' }}
+            >
+              {barang.kodeBarang}
+            </div>
           </div>
         )}
 
         {config.format !== 'barcode_only' && (
-          <div className="shrink-0 flex flex-col items-center">
-            <canvas ref={qrCanvasRef}></canvas>
+          <div className="shrink-0 flex flex-col items-center justify-center">
+            <canvas
+              ref={qrCanvasRef}
+              className="h-auto object-contain"
+              style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
+            ></canvas>
+            {config.format === 'qr_only' && (
+              <div
+                className="font-mono font-bold text-[9.5px] text-black text-center tracking-wider break-all select-all"
+                style={{ marginTop: '3px', lineHeight: '1.2' }}
+              >
+                {barang.kodeBarang}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Footer Info */}
-      <div className="border-t border-black/40 pt-1 mt-1 flex items-center justify-between text-[9px] font-medium text-slate-700">
-        {config.showRoomName && <span className="truncate max-w-[140px]">{barang.ruanganNama}</span>}
-        {config.showYear && <span>Th. {barang.tahunPengadaan}</span>}
+      {/* Footer Info (Ruangan & Tahun Pengadaan) */}
+      <div
+        className="border-t border-black/40 flex items-center justify-between text-[9px] font-medium text-slate-800 w-full"
+        style={{
+          borderTop: '1px solid rgba(0,0,0,0.4)',
+          paddingTop: '6px',
+          marginTop: 'auto',
+          lineHeight: '1.3',
+        }}
+      >
+        <span className="font-semibold">{barang.ruanganNama}</span>
+        <span className="shrink-0 ml-2">Th. {barang.tahunPengadaan}</span>
       </div>
     </div>
   );

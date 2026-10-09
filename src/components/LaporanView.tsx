@@ -65,6 +65,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const [subKopInput, setSubKopInput] = useState(
     pengaturan.subKopText || 'PEMERINTAH PROVINSI LAMPUNG / YAYASAN PONDOK PESANTREN AL-HIKAM'
   );
+  // State Orientation PDF & Exporting
+  const [pdfOrientation, setPdfOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -314,15 +316,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       setIsExportingPdf(true);
       await exportElementToPdf(printEl, {
         fileName: pdfFileName,
-        orientation: 'portrait',
+        orientation: pdfOrientation,
         format: 'a4',
         marginMm: 8,
         quality: 2,
+        showPageNumbers: true,
       });
     } catch (err) {
       console.error('Gagal membuat file PDF:', err);
-      // Fallback: jika html2canvas terhalang sesuatu, buka dialog print browser (Simpan sebagai PDF)
-      handlePrint();
+      alert('Terjadi kendala saat menyusun PDF laporan: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsExportingPdf(false);
     }
@@ -387,20 +389,33 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     `);
     doc.close();
 
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        window.print();
-      } finally {
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 3000);
-      }
-    }, 300);
+    const iframeImages = Array.from(doc.querySelectorAll('img'));
+    const waitForImages = Promise.all(
+      iframeImages.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        });
+      })
+    );
+
+    waitForImages.then(() => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          window.print();
+        } finally {
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 3000);
+        }
+      }, 250);
+    });
   };
 
   const handleExportCSV = () => {
@@ -537,18 +552,45 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <FileSpreadsheet className="w-4 h-4" />
             <span className="hidden sm:inline">Unduh</span> Excel (CSV)
           </button>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setPdfOrientation('landscape')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                pdfOrientation === 'landscape'
+                  ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Format melebar (direkomendasikan untuk 10 kolom tabel)"
+            >
+              Landscape
+            </button>
+            <button
+              type="button"
+              onClick={() => setPdfOrientation('portrait')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                pdfOrientation === 'portrait'
+                  ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Format memanjang tegak"
+            >
+              Portrait
+            </button>
+          </div>
+
           <button
             onClick={handleDownloadPDF}
             disabled={isExportingPdf}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-60"
-            title="Unduh dokumen langsung dalam format PDF resmi A4"
+            title={`Unduh dokumen langsung dalam format PDF resmi A4 (${pdfOrientation})`}
           >
             {isExportingPdf ? (
               <Loader2 className="w-4 h-4 animate-spin text-white" />
             ) : (
               <Download className="w-4 h-4" />
             )}
-            <span>{isExportingPdf ? 'Membuat PDF...' : 'Unduh Format PDF'}</span>
+            <span>{isExportingPdf ? 'Membuat PDF...' : `Unduh PDF (${pdfOrientation === 'landscape' ? 'Landscape' : 'Portrait'})`}</span>
           </button>
           <button
             onClick={handleDownloadDokumen}
@@ -765,7 +807,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       <div id="printable-area" className="bg-white p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 text-slate-900 space-y-6">
         {/* KOP SURAT RESMI */}
         {(tempKopUrl || pengaturan.kopSuratUrl) && pengaturan.tipeKopSurat !== 'teks_otomatis' ? (
-          <div className="relative group text-center pb-2 border-b-2 border-slate-900">
+          <div className="relative group text-center pb-2 border-b-2 border-slate-900 print-break-inside-avoid">
             <img
               src={tempKopUrl || pengaturan.kopSuratUrl}
               alt={`Kop Surat ${pengaturan.namaSekolah}`}
@@ -788,7 +830,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="relative group border-b-4 border-double border-slate-900 pb-3 text-center">
+          <div className="relative group border-b-4 border-double border-slate-900 pb-3 text-center print-break-inside-avoid">
             {onUpdatePengaturan && (
               <button
                 type="button"
@@ -831,7 +873,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         )}
 
         {/* JUDUL DOKUMEN LAPORAN */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-1 print-break-inside-avoid">
           <h2 className="text-base sm:text-lg font-extrabold uppercase underline tracking-wider">
             {jenisLaporan === 'buku_induk' && 'BUKU INDUK INVENTARIS SARANA DAN PRASARANA'}
             {jenisLaporan === 'per_ruangan' &&
@@ -850,8 +892,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
         {/* Informasi Detail jika Laporan per Ruangan */}
         {jenisLaporan === 'per_ruangan' && selectedRuangObj && (
-          <div className="grid grid-cols-2 text-xs border border-slate-300 p-3 rounded-lg bg-slate-50 print:bg-transparent">
-            <div className="space-y-1">
+          <div
+            className="text-xs border border-slate-300 p-3 rounded-lg bg-slate-50 print:bg-transparent print-break-inside-avoid"
+            style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', width: '100%', boxSizing: 'border-box' }}
+          >
+            <div className="space-y-1" style={{ width: '48%', boxSizing: 'border-box' }}>
               <p>
                 <b>Nama Ruangan:</b> {selectedRuangObj.namaRuangan}
               </p>
@@ -862,7 +907,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 <b>Gedung / Lokasi:</b> {selectedRuangObj.gedung || '-'}
               </p>
             </div>
-            <div className="space-y-1 text-right sm:text-left sm:pl-8">
+            <div className="space-y-1 sm:pl-8 text-right sm:text-left" style={{ width: '48%', boxSizing: 'border-box' }}>
               <p>
                 <b>Penanggung Jawab:</b> {selectedRuangObj.penanggungJawab || '-'}
               </p>
@@ -907,7 +952,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   const total = Number(item.totalNilai) || qty * harga;
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50 print:hover:bg-transparent">
+                    <tr key={item.id} className="hover:bg-slate-50 print:hover:bg-transparent print-break-inside-avoid">
                       <td className="border border-slate-900 p-2 text-center">{idx + 1}</td>
                       <td className="border border-slate-900 p-2 font-mono font-bold text-indigo-900 print:text-black">
                         {item.kodeBarang}
@@ -974,8 +1019,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         </div>
 
         {/* KOLOM TANDA TANGAN RESMI KEMENDIKBUD / SURAT DINAS */}
-        <div className="pt-8 text-xs grid grid-cols-2 gap-8 text-center print:pt-10">
-          <div>
+        <div
+          className="pt-8 text-xs text-center print:pt-10 print-break-inside-avoid"
+          style={{ display: 'flex', justifyContent: 'space-between', gap: '32px', width: '100%', boxSizing: 'border-box' }}
+        >
+          <div style={{ width: '46%', boxSizing: 'border-box' }}>
             <p>Mengetahui,</p>
             <p className="font-bold">Kepala Sekolah {pengaturan.namaSekolah}</p>
             <div className="h-20"></div>
@@ -987,7 +1035,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </p>
           </div>
 
-          <div>
+          <div style={{ width: '46%', boxSizing: 'border-box' }}>
             <p>Sendang Agung, {todayStr}</p>
             <p className="font-bold">Wakil Kepala Urusan Sarana & Prasarana</p>
             <div className="h-20"></div>

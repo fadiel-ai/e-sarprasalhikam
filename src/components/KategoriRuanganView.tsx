@@ -176,10 +176,11 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
         format: 'a4',
         marginMm: 8,
         quality: 2,
+        showPageNumbers: true,
       });
     } catch (err) {
       console.error('Gagal membuat PDF KIR:', err);
-      handlePrintKIR();
+      alert('Terjadi kendala saat menyusun PDF KIR: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsExportingPdf(false);
     }
@@ -517,9 +518,9 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
             </div>
 
             {/* Printable Document Sheet (A4 format) */}
-            <div id="printableKir" className="p-8 max-h-[80vh] overflow-y-auto bg-white text-black font-sans text-xs">
+            <div id="printableKir" className="p-8 max-h-[80vh] overflow-y-auto print:max-h-none print:overflow-visible bg-white text-black font-sans text-xs">
               {/* Kop Sekolah */}
-              <div className="border-b-2 border-black pb-3 mb-4 text-center">
+              <div className="border-b-2 border-black pb-3 mb-4 text-center print-break-inside-avoid">
                 <h2 className="text-base font-extrabold uppercase tracking-wide">
                   {pengaturan.namaSekolah}
                 </h2>
@@ -533,7 +534,7 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
               </div>
 
               {/* Title Document */}
-              <div className="text-center mb-5">
+              <div className="text-center mb-5 print-break-inside-avoid">
                 <h3 className="text-sm font-bold uppercase underline tracking-wider">
                   KARTU INVENTARIS RUANGAN (KIR)
                 </h3>
@@ -543,8 +544,11 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
               </div>
 
               {/* Metadata Ruangan */}
-              <div className="grid grid-cols-2 gap-4 mb-4 text-[11px] border border-slate-300 p-3 rounded bg-slate-50/50">
-                <div>
+              <div
+                className="mb-4 text-[11px] border border-slate-300 p-3 rounded bg-slate-50/50 print-break-inside-avoid"
+                style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', width: '100%', boxSizing: 'border-box' }}
+              >
+                <div style={{ width: '48%', boxSizing: 'border-box' }}>
                   <p>
                     <span className="font-semibold inline-block w-36">Gedung / Lokasi:</span>{' '}
                     {kirRuangan.gedung} ({kirRuangan.lantai})
@@ -554,7 +558,7 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
                     {kirRuangan.kapasitas} Orang
                   </p>
                 </div>
-                <div>
+                <div style={{ width: '48%', boxSizing: 'border-box' }}>
                   <p>
                     <span className="font-semibold inline-block w-36">Penanggung Jawab:</span>{' '}
                     {kirRuangan.penanggungJawab}
@@ -589,7 +593,7 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
                     </tr>
                   ) : (
                     getBarangByRuang(kirRuangan.id).map((b, idx) => (
-                      <tr key={b.id} className="hover:bg-slate-50">
+                      <tr key={b.id} className="hover:bg-slate-50 print-break-inside-avoid">
                         <td className="border border-black p-1.5 text-center">{idx + 1}</td>
                         <td className="border border-black p-1.5 font-mono font-semibold">
                           {b.kodeBarang}
@@ -613,15 +617,18 @@ export const KategoriRuanganView: React.FC<KategoriRuanganViewProps> = ({
               </table>
 
               {/* Tanda Tangan Pengesahan Standar */}
-              <div className="grid grid-cols-2 text-center text-[11px] pt-4 print-break-inside-avoid">
-                <div>
+              <div
+                className="text-center text-[11px] pt-4 print-break-inside-avoid"
+                style={{ display: 'flex', justifyContent: 'space-between', gap: '32px', width: '100%', boxSizing: 'border-box' }}
+              >
+                <div style={{ width: '46%', boxSizing: 'border-box' }}>
                   <p>Mengetahui,</p>
                   <p className="font-semibold">Kepala Sekolah</p>
                   <div className="h-16"></div>
                   <p className="font-bold underline">{pengaturan.kepalaSekolah}</p>
                   <p>NIP. {pengaturan.nipKepalaSekolah}</p>
                 </div>
-                <div>
+                <div style={{ width: '46%', boxSizing: 'border-box' }}>
                   <p>{pengaturan.kabupatenKota}, {formatDateIndo(new Date().toISOString().slice(0, 10))}</p>
                   <p className="font-semibold">Penanggung Jawab Ruangan</p>
                   <div className="h-16"></div>
